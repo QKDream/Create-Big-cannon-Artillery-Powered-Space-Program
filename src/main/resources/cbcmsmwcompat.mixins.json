@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.qkdream.cbcmsmwcompat.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AmmoRackSwitchFilterMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

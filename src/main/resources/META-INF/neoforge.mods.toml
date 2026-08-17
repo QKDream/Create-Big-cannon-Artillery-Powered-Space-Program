@@ -1,0 +1,71 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[mods]]
+modId = "cbcmsmwcompat"
+version = "1.2.0"
+logoFile = "logo.png"
+displayName = "机械动力火炮：载人航天（Create Big cannon:Artillery-Powered Space Program）"
+authors = "QKDream"
+description = '''Fixes CBC Modern Warfare medium cannon ammunition handling in CBC Military Supplement ammo racks (loading and redstone shell selection) and adds ammunition cook off: racks, depots, mianbaos and vestalihy missile/rocket launchers, missiles in flight (also when hit by fragments), and dying players carrying CBC ammunition detonate when hit or caught in an explosion blast.'''
+
+[[dependencies.cbcmsmwcompat]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.233,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1]"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "create"
+type = "required"
+versionRange = "[6.0.10,6.1.0)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "createbigcannons"
+type = "required"
+versionRange = "[5.11.7,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "cbcmoreshells"
+type = "required"
+versionRange = "[2.1.0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "mianbaos_modernwarfare"
+type = "optional"
+versionRange = "[2.3.0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "vestalihy"
+type = "optional"
+versionRange = "[2.5.2,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "cbcmodernwarfare"
+type = "required"
+versionRange = "[0.0.6,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[mixins]]
+config = "cbcmsmwcompat.mixins.json"
+
