@@ -6,16 +6,22 @@ import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import rbasamoyai.createbigcannons.munitions.AbstractCannonProjectile;
 import rbasamoyai.createbigcannons.munitions.ProjectileContext;
 
 /**
- * Hooks the universal block-impact path of Create Big Cannons projectiles. The
- * penetration call is intercepted (the INVOKE inject callback cannot carry the
- * parameterised call signature) so the exact hit position is available: an ammo
- * rack or depot hit this way always cooks off first, even when the projectile
- * itself would otherwise just destroy the block.
+ * Hooks Create Big Cannons projectiles for ammo cook offs:
+ *
+ * 1. The universal block-impact path is intercepted (the INVOKE inject callback cannot
+ *    carry the parameterised call signature) so the exact hit position is available.
+ * 2. After every projectile tick the mod performs its own contact check plus a swept
+ *    segment check between the previous and current position. CBC projectiles use their
+ *    own collision pipeline and never fire vanilla projectile impact events, so a
+ *    projectile that destroys a rack without calling the penetration path still cooks
+ *    the rack off the moment it touches it.
  */
 @Mixin(AbstractCannonProjectile.class)
 public abstract class AbstractCannonProjectileMixin {
@@ -32,6 +38,14 @@ public abstract class AbstractCannonProjectileMixin {
             CookOffHandler.onProjectileBlockHit(projectile.level(), hitResult.getBlockPos());
         }
         return cbcmsmwcompat$invokeCalculateBlockPenetration(context, state, hitResult);
+    }
+
+    @Inject(method = "tick", at = @At("TAIL"))
+    private void cbcmsmwcompat$afterTick(CallbackInfo ci) {
+        AbstractCannonProjectile projectile = (AbstractCannonProjectile) (Object) this;
+        if (!projectile.level().isClientSide()) {
+            CookOffHandler.onProjectileTick(projectile);
+        }
     }
 
     @Invoker("calculateBlockPenetration")

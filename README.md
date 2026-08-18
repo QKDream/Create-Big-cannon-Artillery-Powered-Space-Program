@@ -18,7 +18,7 @@
 - **动力臂装填修复**：动力臂现在可以从水套弹药架中取出/放入 CBCMW 中炮弹药。
 - **红石弹种选择修复**：水套弹药架由红石信号控制的弹种选择支持 CBCMW 弹药。
 - **弹药殉爆**（灵感来自战争雷霆）：
-  - 装有弹药的弹药架或置物台被任意 CBC 系炮弹直接命中必定殉爆，被任意爆炸波及也必定殉爆（直接命中不再有概率只打坏本体而不殉爆）；
+  - 装有弹药的弹药架或置物台被任意 CBC 系炮弹直接命中或接触必定殉爆（弹射物接触引爆），被任意爆炸波及也必定殉爆（直接命中不再有概率只打坏本体而不殉爆）；
   - **威力由弹种与数量决定**：迫击石弹、穿甲弹、脱壳穿甲弹等没有炸药的弹头不会殉爆；高爆弹、破甲弹等殉爆威力更大；CBCMW 中型弹药全部会殉爆；
   - 数量越多威力越大，最高达到基础威力的 **2 倍**（半径按立方根换算）；
   - 殉爆弹药的特殊效果也会触发：烟雾弹释放烟幕、燃烧弹引发火焰；
@@ -30,7 +30,7 @@
 
 ### 安装
 1. 安装下方的前置 mod。
-2. 将仓库根目录的 `cbcmsmwcompat-2.0.0.jar` 放入对应游戏实例的 `mods` 文件夹。
+2. 将仓库根目录的 `cbcmsmwcompat-2.0.1.jar` 放入对应游戏实例的 `mods` 文件夹。
 3. 首次启动后生成配置文件：`world/serverconfig/cbcmsmwcompat-server.toml`。
 
 ### 前置要求
@@ -60,7 +60,7 @@
 - **Исправлена загрузка механической рукой**: рука может доставать и класть боеприпасы CBCMW в стеллажи с водяным охлаждением.
 - **Исправлен выбор типа снаряда**: переключение снарядов по сигналу редстоуна поддерживает боеприпасы CBCMW.
 - **Детонация боезапаса** (вдохновлена War Thunder):
-  - стеллаж или депо с боеприпасами гарантированно детонирует при прямом попадании любого снаряда семейства CBC и при взрывной волне (прямое попадание больше не может просто разрушить блок без детонации);
+  - стеллаж или депо с боеприпасами гарантированно детонирует при прямом попадании или контакте любого снаряда семейства CBC (контактный подрыв снаряда) и при взрывной волне (прямое попадание больше не может просто разрушить блок без детонации);
   - **мощность зависит от типа и количества снарядов**: каменные мортирные ядра, бронебойные и подкалиберные снаряды без взрывчатки не детонируют; фугасные и кумулятивные снаряды детонируют с повышенной мощностью; все средние боеприпасы CBCMW детонируют;
   - чем больше боеприпасов, тем выше мощность — до **2 раз** от базовой (радиус растёт по кубическому корню);
   - срабатывают и особые эффекты: дымовые снаряды дают дымовую завесу, зажигательные — огонь;
@@ -72,7 +72,7 @@
 
 ### Установка
 1. Установите зависимости (см. ниже).
-2. Скопируйте `cbcmsmwcompat-2.0.0.jar` из корня репозитория в папку `mods` нужного экземпляра игры.
+2. Скопируйте `cbcmsmwcompat-2.0.1.jar` из корня репозитория в папку `mods` нужного экземпляра игры.
 3. После первого запуска создаётся конфиг: `world/serverconfig/cbcmsmwcompat-server.toml`.
 
 ### Требования
@@ -99,7 +99,7 @@ It fixes interaction between the water-jacketed ammo racks from CBC Military Sup
 - **Mechanical arm loading fix**: Create mechanical arms can now load and unload CBCMW medium cannon ammunition from water-jacketed ammo racks.
 - **Redstone shell selection fix**: the racks' redstone-controlled shell selection also cycles CBCMW ammunition.
 - **Ammunition cook-off** (inspired by War Thunder):
-  - a rack or depot holding ammunition always cook offs when directly hit by any CBC-family projectile or caught in any explosion blast (a direct hit can no longer just break the block without a cook-off);
+  - a rack or depot holding ammunition always cook offs when directly hit by or touched by any CBC-family projectile (projectile contact detonation) or caught in any explosion blast (a direct hit can no longer just break the block without a cook-off);
   - **power depends on shell type and quantity**: non-explosive warheads such as mortar stone, AP and APFSDS shots do not cook off; HE/HEAT-class shells cook off at increased power; all CBCMW medium ammunition cooks off;
   - the more ammunition stored, the bigger the blast, up to **2x the base power** (radius scales with the cube root);
   - special effects trigger too: smoke shells release a smoke cloud, incendiary shells spread fire;
@@ -111,7 +111,7 @@ It fixes interaction between the water-jacketed ammo racks from CBC Military Sup
 
 ### Install
 1. Install the dependencies listed below.
-2. Drop `cbcmsmwcompat-2.0.0.jar` from the repository root into the `mods` folder of your game instance.
+2. Drop `cbcmsmwcompat-2.0.1.jar` from the repository root into the `mods` folder of your game instance.
 3. After the first launch a config file is generated: `world/serverconfig/cbcmsmwcompat-server.toml`.
 
 ### Requirements

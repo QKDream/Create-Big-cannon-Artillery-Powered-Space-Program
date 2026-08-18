@@ -125,9 +125,6 @@ public final class CookOffHandler {
     public static void onServerTick(ServerTickEvent.Post event) {
         processPendingExplosions();
         processPendingSmoke();
-        if (CompatConfig.DIRECT_HIT_COOK_OFF.get()) {
-            sweepProjectiles(event);
-        }
         sweepFragments(event);
     }
 
@@ -141,6 +138,76 @@ public final class CookOffHandler {
             return;
         }
         triggerCookOff(serverLevel, pos);
+    }
+
+    /**
+     * Called by the mixin after every CBC projectile tick. Runs the contact check and
+     * the swept segment check so ammo storages detonate the moment a projectile
+     * touches them, independent of CBC's internal penetration/impact pipeline.
+     */
+    public static void onProjectileTick(AbstractCannonProjectile projectile) {
+        if (!(projectile.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        if (projectile.isRemoved()) {
+            LAST_POS.remove(projectile);
+            LAST_HIT.remove(projectile);
+            Set<AbstractCannonProjectile> removedSet = TRACKED.get(serverLevel);
+            if (removedSet != null) {
+                removedSet.remove(projectile);
+            }
+            return;
+        }
+        TRACKED.computeIfAbsent(serverLevel, k -> new HashSet<>()).add(projectile);
+        if (!CompatConfig.DIRECT_HIT_COOK_OFF.get()) {
+            return;
+        }
+        Vec3 current = projectile.position();
+        Vec3 previous = LAST_POS.put(projectile, current);
+
+        // Contact detonation: the storage the projectile hitbox touches cooks off
+        // even when CBC's penetration path never runs for that block.
+        BlockPos contact = findContactTarget(serverLevel, projectile);
+        if (contact != null && !contact.equals(LAST_HIT.get(projectile))) {
+            LAST_HIT.put(projectile, contact);
+            triggerCookOff(serverLevel, contact);
+        }
+        if (previous == null) {
+            return;
+        }
+        BlockPos hit = findCookOffTarget(serverLevel, projectile, previous, current);
+        if (hit == null) {
+            LAST_HIT.remove(projectile);
+        } else if (!hit.equals(LAST_HIT.put(projectile, hit))) {
+            triggerCookOff(serverLevel, hit);
+        }
+        sweepMissiles(serverLevel, projectile, previous, current);
+        sweepLauncherEntities(serverLevel, projectile, previous, current);
+    }
+
+    /** Returns the cook-off storage the projectile hitbox currently overlaps, if any. */
+    private static BlockPos findContactTarget(ServerLevel level, AbstractCannonProjectile projectile) {
+        AABB box = projectile.getBoundingBox().inflate(0.05);
+        int minX = Mth.floor(box.minX);
+        int maxX = Mth.floor(box.maxX);
+        int minY = Mth.floor(box.minY);
+        int maxY = Mth.floor(box.maxY);
+        int minZ = Mth.floor(box.minZ);
+        int maxZ = Mth.floor(box.maxZ);
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    BlockPos pos = new BlockPos(x, y, z);
+                    boolean rack = RackCompatUtil.isAmmoRack(level, pos);
+                    boolean depot = CompatConfig.DEPOT_COOK_OFF.get() && isDepotBlock(level, pos);
+                    boolean launcher = CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos);
+                    if (rack || depot || launcher) {
+                        return pos;
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**
