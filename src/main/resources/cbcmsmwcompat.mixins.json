@@ -4,7 +4,8 @@
   "package": "com.qkdream.cbcmsmwcompat.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "AmmoRackSwitchFilterMixin"
+    "AmmoRackSwitchFilterMixin",
+    "AbstractCannonProjectileMixin"
   ],
   "injectors": {
     "defaultRequire": 1

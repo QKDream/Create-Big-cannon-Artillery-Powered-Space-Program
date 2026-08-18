@@ -16,15 +16,21 @@ public final class CompatConfig {
     public static final ModConfigSpec.IntValue COOK_OFF_EXPLOSION_COUNT;
     public static final ModConfigSpec.IntValue COOK_OFF_EXPLOSION_INTERVAL;
     public static final ModConfigSpec.DoubleValue COOK_OFF_EXPLOSION_JITTER;
-    public static final ModConfigSpec.DoubleValue COOK_OFF_BLOCK_RADIUS;
-    public static final ModConfigSpec.DoubleValue COOK_OFF_ENTITY_RADIUS;
+    public static final ModConfigSpec.DoubleValue COOK_OFF_BASE_RADIUS;
+    public static final ModConfigSpec.DoubleValue COOK_OFF_MAX_MULTIPLIER;
+    public static final ModConfigSpec.DoubleValue COOK_OFF_WEIGHT_STANDARD;
+    public static final ModConfigSpec.DoubleValue COOK_OFF_WEIGHT_EXPLOSIVE;
+    public static final ModConfigSpec.DoubleValue COOK_OFF_WEIGHT_PROPELANT;
+    public static final ModConfigSpec.DoubleValue COOK_OFF_WEIGHT_SPECIAL;
+    public static final ModConfigSpec.BooleanValue COOK_OFF_SPECIAL_EFFECTS;
     public static final ModConfigSpec.BooleanValue COOK_OFF_FIRE;
     public static final ModConfigSpec.BooleanValue MIANBAOS_COOK_OFF;
     public static final ModConfigSpec.DoubleValue MIANBAOS_POWER_SCALE;
     public static final ModConfigSpec.DoubleValue MISSILE_POWER_SCALE;
     public static final ModConfigSpec.BooleanValue VESTALIHY_COOK_OFF;
     public static final ModConfigSpec.DoubleValue VESTALIHY_POWER_SCALE;
-    public static final ModConfigSpec.BooleanValue PLAYER_DEATH_COOK_OFF;
+    public static final ModConfigSpec.BooleanValue MOB_DEATH_COOK_OFF;
+    public static final ModConfigSpec.BooleanValue SABLE_COOK_OFF;
     public static final ModConfigSpec.BooleanValue DEBUG_LOGGING;
 
     static {
@@ -60,12 +66,33 @@ public final class CompatConfig {
         COOK_OFF_EXPLOSION_JITTER = builder
                 .comment("Maximum random horizontal offset (in blocks) applied to each cook off explosion.")
                 .defineInRange("explosionJitter", 1.5, 0.0, 8.0);
-        COOK_OFF_BLOCK_RADIUS = builder
-                .comment("Block radius of each cook off explosion.")
-                .defineInRange("explosionBlockRadius", 7.0, 1.0, 64.0);
-        COOK_OFF_ENTITY_RADIUS = builder
-                .comment("Entity damage radius of each cook off explosion.")
-                .defineInRange("explosionEntityRadius", 7.0, 1.0, 64.0);
+        COOK_OFF_BASE_RADIUS = builder
+                .comment("Base radius of each cook off explosion. The yield of the stored ammunition",
+                        "(shell type and quantity, see the power.* settings below) scales this radius up.")
+                .defineInRange("power.baseRadius", 10.0, 1.0, 64.0);
+        COOK_OFF_MAX_MULTIPLIER = builder
+                .comment("Maximum power multiplier a cook off can reach from the ammunition yield.",
+                        "Power scales with the cube of the explosion radius, so a multiplier of 2",
+                        "enlarges the radius by about 1.26x.")
+                .defineInRange("power.maxMultiplier", 2.0, 1.0, 64.0);
+        COOK_OFF_WEIGHT_STANDARD = builder
+                .comment("Yield weight of one standard shell (CBCMW medium ammunition, cartridges,",
+                        "propellant and ordinary shells).")
+                .defineInRange("power.weightStandard", 1.0, 0.0, 8.0);
+        COOK_OFF_WEIGHT_EXPLOSIVE = builder
+                .comment("Yield weight of one high explosive warhead (HE, HEAT/HESH, SAP, incendiary",
+                        "and CBCMW medium HE-family rounds): they cook off at increased power.")
+                .defineInRange("power.weightExplosive", 2.0, 0.0, 8.0);
+        COOK_OFF_WEIGHT_PROPELANT = builder
+                .comment("Yield weight of one propellant item (powder charge or cartridge).")
+                .defineInRange("power.weightPropellant", 1.0, 0.0, 8.0);
+        COOK_OFF_WEIGHT_SPECIAL = builder
+                .comment("Yield weight of one special-effect shell with no HE filler (smoke shells).")
+                .defineInRange("power.weightSpecial", 1.0, 0.0, 8.0);
+        COOK_OFF_SPECIAL_EFFECTS = builder
+                .comment("Cooking off ammunition with special effects also triggers those effects:",
+                        "smoke shells release a smoke cloud, incendiary shells spread fire.")
+                .define("power.specialEffects", true);
         COOK_OFF_FIRE = builder
                 .comment("Whether the cook off explosions create fire.")
                 .define("fire", false);
@@ -88,9 +115,17 @@ public final class CompatConfig {
         VESTALIHY_POWER_SCALE = builder
                 .comment("Explosion radius multiplier for vestalihy launcher cook offs.")
                 .defineInRange("vestalihyPowerScale", 0.8, 0.1, 2.0);
-        PLAYER_DEATH_COOK_OFF = builder
-                .comment("Players carrying CBC ammunition cook off when they die, at ammo rack power.")
-                .define("playerDeathEnabled", true);
+        MOB_DEATH_COOK_OFF = builder
+                .comment("Any living entity (players included) carrying CBC-family ammunition or",
+                        "propellant cooks off when it dies. Power follows the same type and",
+                        "quantity rules as an ammo rack. Touhou Little Maid maids also count",
+                        "the ammunition stored in their maid inventory.")
+                .define("mobDeathEnabled", true);
+        SABLE_COOK_OFF = builder
+                .comment("Sable sub-level structures caught in a cook off blast take structural",
+                        "damage: blocks inside the blast radius are destroyed with the usual",
+                        "explosion resistance rules and their drops appear at the structure.")
+                .define("sableEnabled", true);
         DEBUG_LOGGING = builder
                 .comment("Log cook off triggers to the game log.")
                 .define("debugLogging", true);

@@ -4,11 +4,11 @@ license = "MIT"
 
 [[mods]]
 modId = "cbcmsmwcompat"
-version = "1.2.0"
+version = "2.0.0"
 logoFile = "logo.png"
 displayName = "机械动力火炮：载人航天（Create Big cannon:Artillery-Powered Space Program）"
 authors = "QKDream"
-description = '''Fixes CBC Modern Warfare medium cannon ammunition handling in CBC Military Supplement ammo racks (loading and redstone shell selection) and adds ammunition cook off: racks, depots, mianbaos and vestalihy missile/rocket launchers, missiles in flight (also when hit by fragments), and dying players carrying CBC ammunition detonate when hit or caught in an explosion blast.'''
+description = '''Fixes CBC Modern Warfare medium cannon ammunition handling in CBC Military Supplement ammo racks (loading and redstone shell selection) and adds ammunition cook off: racks, depots, mianbaos and vestalihy missile/rocket launchers, missiles in flight (also when hit by fragments) and dying creatures carrying CBC ammunition all detonate when hit or caught in a blast, and Sable sub-level structures caught in the blast take structural damage.'''
 
 [[dependencies.cbcmsmwcompat]]
 modId = "neoforge"
@@ -63,6 +63,13 @@ side = "BOTH"
 modId = "cbcmodernwarfare"
 type = "required"
 versionRange = "[0.0.6,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
+modId = "sable"
+type = "optional"
+versionRange = "[2.0.3,)"
 ordering = "AFTER"
 side = "BOTH"
 

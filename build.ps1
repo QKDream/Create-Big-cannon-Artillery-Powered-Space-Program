@@ -43,7 +43,9 @@ foreach ($p in @("$libs\net\neoforged\fancymodloader\loader\4.0.42\loader-4.0.42
                  "$libs\net\neoforged\bus\8.0.5\bus-8.0.5.jar",
                  "$libs\net\neoforged\mergetool\2.0.0\mergetool-2.0.0-api.jar",
                  "$libs\com\mojang\datafixerupper\6.0.6\datafixerupper-6.0.6.jar",
+                 "$libs\org\joml\joml\1.10.8\joml-1.10.8.jar",
                  "$libs\com\mojang\brigadier\1.3.10\brigadier-1.3.10.jar",
+                 "$libs\com\google\code\gson\gson\2.10.1\gson-2.10.1.jar",
                  "$libs\org\slf4j\slf4j-api\2.0.17\slf4j-api-2.0.17.jar",
                  "$libs\net\fabricmc\sponge-mixin\0.15.2+mixin.0.8.7\sponge-mixin-0.15.2+mixin.0.8.7.jar")) {
     if (Test-Path $p) { $cp += $p }
@@ -55,7 +57,8 @@ $cbcJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -li
 $cbcmsJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "CBC-Military-Supplement*" } | Select-Object -First 1
 $cbcmwJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "cbcmodernwarfare-0.0.6v*" } | Select-Object -First 1
 $rplJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "ritchiesprojectilelib*" } | Select-Object -First 1
-foreach ($j in @($createJar, $cbcJar, $cbcmsJar, $cbcmwJar, $rplJar)) {
+$sableJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "sable-neoforge*" } | Select-Object -First 1
+foreach ($j in @($createJar, $cbcJar, $cbcmsJar, $cbcmwJar, $rplJar, $sableJar)) {
     if ($j) { $cp += $j.FullName }
 }
 
@@ -83,6 +86,28 @@ try {
     }
 } finally {
     $zipArchive.Dispose()
+}
+
+# 5b. Sable jar-in-jar's companion library (BoundingBox3d/Pose3d math) is needed to
+#     compile the optional Sable integration. Unpack it into a directory classpath entry.
+if ($sableJar) {
+    $sableArchive = [System.IO.Compression.ZipFile]::OpenRead($sableJar.FullName)
+    try {
+        foreach ($entry in $sableArchive.Entries) {
+            if ($entry.FullName -like "META-INF/jarjar/sable-companion-common-*.jar") {
+                $flatName = Split-Path $entry.FullName -Leaf
+                $flatPath = Join-Path $flatBase $flatName
+                [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $flatPath, $true)
+                Set-ItemProperty -Path $flatPath -Name IsReadOnly -Value $false
+                $unpackDir = Join-Path $flatClasses ($flatName + "_unpacked")
+                if (Test-Path $unpackDir) { Remove-Item -Recurse -Force $unpackDir }
+                [System.IO.Compression.ZipFile]::ExtractToDirectory($flatPath, $unpackDir)
+                $cp += $unpackDir
+            }
+        }
+    } finally {
+        $sableArchive.Dispose()
+    }
 }
 
 $classpath = ($cp | Select-Object -Unique) -join ";"
@@ -113,7 +138,7 @@ Copy-Item -Force "$ws\src\main\resources\cbcmsmwcompat.mixins.json" $jarTmp
 Copy-Item -Force "$ws\src\main\resources\logo.png" $jarTmp
 
 
-$jarOut = Join-Path $ws "cbcmsmwcompat-1.2.0.jar"
+$jarOut = Join-Path $ws "cbcmsmwcompat-2.0.0.jar"
 if (Test-Path $jarOut) { Remove-Item -Force $jarOut }
 Push-Location $jarTmp
 & $jar cf $jarOut "*"
@@ -127,6 +152,6 @@ if (Test-Path $jarOut) {
 }
 
 # Deploy: copy to the game mods folder and remove older builds of this mod.
-Copy-Item -Force $jarOut (Join-Path $modsFolder "cbcmsmwcompat-1.2.0.jar")
-Get-ChildItem $modsFolder -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-1.2.0.jar" } | Remove-Item -Force
+Copy-Item -Force $jarOut (Join-Path $modsFolder "cbcmsmwcompat-2.0.0.jar")
+Get-ChildItem $modsFolder -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.0.0.jar" } | Remove-Item -Force
 Write-Host "Deployed to: $modsFolder"

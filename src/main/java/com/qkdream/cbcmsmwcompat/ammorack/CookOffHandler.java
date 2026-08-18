@@ -3,6 +3,7 @@ package com.qkdream.cbcmsmwcompat.ammorack;
 import com.cainiao1053.cbcmoreshells.blocks.ammo_rack.AmmoRackBlockEntity;
 import com.qkdream.cbcmsmwcompat.CBCMSMWCompat;
 import com.qkdream.cbcmsmwcompat.config.CompatConfig;
+import com.qkdream.cbcmsmwcompat.sable.SableCompat;
 import com.simibubi.create.content.logistics.depot.DepotBlockEntity;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -13,11 +14,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.NonNullList;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.Level;
@@ -31,6 +33,7 @@ import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.level.ExplosionEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.neoforged.neoforge.items.IItemHandler;
 import rbasamoyai.createbigcannons.CreateBigCannons;
 import rbasamoyai.createbigcannons.munitions.AbstractCannonProjectile;
 import rbasamoyai.createbigcannons.munitions.ShellExplosion;
@@ -47,10 +50,17 @@ public final class CookOffHandler {
     /** Cook off explosions waiting to detonate, so bursts spread over several ticks. */
     private static final List<PendingExplosion> PENDING = new ArrayList<>();
 
+    /** Smoke clouds released by cook offs of smoke ammunition, fading over a few seconds. */
+    private static final List<PendingSmoke> PENDING_SMOKE = new ArrayList<>();
+
     private CookOffHandler() {
     }
 
-    private record PendingExplosion(ServerLevel level, Vec3 center, int ticksLeft, double scale) {
+    private record PendingExplosion(ServerLevel level, Vec3 center, int ticksLeft, double scale,
+            boolean smoke, boolean fire) {
+    }
+
+    private record PendingSmoke(ServerLevel level, Vec3 center, int ticksLeft) {
     }
 
     /** Queues the multi-explosion burst for one cook off at full ammo rack power. */
@@ -60,10 +70,23 @@ public final class CookOffHandler {
 
     /** Queues the multi-explosion burst for one cook off, scaled by {@code scale}. */
     public static void scheduleCookOffExplosions(ServerLevel level, Vec3 center, double scale) {
+        scheduleCookOffExplosions(level, center, scale, false, false);
+    }
+
+    /** Queues the multi-explosion burst for one cook off, scaled by {@code scale}. */
+    public static void scheduleCookOffExplosions(ServerLevel level, Vec3 center, double scale,
+            boolean smoke, boolean fire) {
         int count = CompatConfig.COOK_OFF_EXPLOSION_COUNT.get();
         int interval = Math.max(1, CompatConfig.COOK_OFF_EXPLOSION_INTERVAL.get());
+        // Block storages inside Sable sub-levels report plot coordinates. Project the
+        // blast to the structure's displayed world position so the main world and any
+        // neighbouring structures around it are damaged as well.
+        Vec3 worldCenter = SableCompat.projectOutOfSubLevel(level, center);
         for (int i = 0; i < count; i++) {
-            PENDING.add(new PendingExplosion(level, center, 1 + i * interval, scale));
+            PENDING.add(new PendingExplosion(level, worldCenter, 1 + i * interval, scale, smoke, fire));
+        }
+        if (smoke && CompatConfig.COOK_OFF_SPECIAL_EFFECTS.get()) {
+            PENDING_SMOKE.add(new PendingSmoke(level, worldCenter, 160));
         }
     }
 
@@ -101,10 +124,23 @@ public final class CookOffHandler {
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         processPendingExplosions();
+        processPendingSmoke();
         if (CompatConfig.DIRECT_HIT_COOK_OFF.get()) {
             sweepProjectiles(event);
         }
         sweepFragments(event);
+    }
+
+    /**
+     * Called by the mixin right before a CBC projectile processes a block impact, while
+     * the block still exists: a rack or depot hit this way always cooks off first, even
+     * when the projectile itself would otherwise just destroy the block.
+     */
+    public static void onProjectileBlockHit(Level level, BlockPos pos) {
+        if (!(level instanceof ServerLevel serverLevel) || !CompatConfig.DIRECT_HIT_COOK_OFF.get()) {
+            return;
+        }
+        triggerCookOff(serverLevel, pos);
     }
 
     /**
@@ -121,12 +157,38 @@ public final class CookOffHandler {
         for (PendingExplosion pending : snapshot) {
             if (pending.ticksLeft() > 1) {
                 remaining.add(new PendingExplosion(
-                        pending.level(), pending.center(), pending.ticksLeft() - 1, pending.scale()));
+                        pending.level(), pending.center(), pending.ticksLeft() - 1,
+                        pending.scale(), pending.smoke(), pending.fire()));
             } else {
-                explodeCookOff(pending.level(), pending.center(), pending.scale());
+                explodeCookOff(pending.level(), pending.center(), pending.scale(), pending.fire());
             }
         }
         PENDING.addAll(0, remaining);
+    }
+
+    /** Emits the smoke cloud of a smoke-shell cook off, a few particles every tick. */
+    private static void processPendingSmoke() {
+        if (PENDING_SMOKE.isEmpty()) {
+            return;
+        }
+        List<PendingSmoke> snapshot = new ArrayList<>(PENDING_SMOKE);
+        PENDING_SMOKE.clear();
+        List<PendingSmoke> remaining = new ArrayList<>();
+        for (PendingSmoke smoke : snapshot) {
+            if (smoke.ticksLeft() > 0) {
+                ServerLevel level = smoke.level();
+                Vec3 center = smoke.center();
+                double rise = (160 - smoke.ticksLeft()) * 0.02;
+                for (int i = 0; i < 3; i++) {
+                    double x = center.x + (level.random.nextDouble() * 2.0 - 1.0) * 2.5;
+                    double y = center.y + 0.5 + rise + level.random.nextDouble() * 1.5;
+                    double z = center.z + (level.random.nextDouble() * 2.0 - 1.0) * 2.5;
+                    level.sendParticles(ParticleTypes.LARGE_SMOKE, x, y, z, 1, 0.05, 0.15, 0.05, 0.02);
+                }
+                remaining.add(new PendingSmoke(level, center, smoke.ticksLeft() - 1));
+            }
+        }
+        PENDING_SMOKE.addAll(0, remaining);
     }
 
     private static void sweepProjectiles(ServerTickEvent.Post event) {
@@ -266,12 +328,11 @@ public final class CookOffHandler {
 
     /** Triggers cook off on whichever ammo storage (rack, depot or launcher) is at the position. */
     private static void triggerCookOff(ServerLevel level, BlockPos pos) {
-        if (level.getBlockEntity(pos) instanceof AmmoRackBlockEntity rack && RackCompatUtil.hasAmmo(rack)) {
+        if (level.getBlockEntity(pos) instanceof AmmoRackBlockEntity rack) {
             RackCompatUtil.cookOff(level, pos, rack);
         } else if (CompatConfig.DEPOT_COOK_OFF.get()
                 && level.getBlockEntity(pos) instanceof DepotBlockEntity depot
-                && !depot.getHeldItem().isEmpty()
-                && RackCompatUtil.isLoadableAmmo(depot.getHeldItem())) {
+                && RackCompatUtil.isDepotWithAmmo(level, pos)) {
             RackCompatUtil.cookOffDepot(level, pos, depot);
         } else if (CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos)) {
             cookOffLauncher(level, pos);
@@ -376,34 +437,80 @@ public final class CookOffHandler {
         }
     }
 
-    /** A player dying while carrying CBC-family ammunition detonates at rack power. */
+    /**
+     * Any living entity (players included) dying while carrying CBC-family ammunition or
+     * propellant detonates. The power follows the same shell type and quantity rules as
+     * an ammo rack: more ammunition means more power, capped at the configured maximum.
+     */
     @SubscribeEvent
     public static void onLivingDeath(LivingDeathEvent event) {
-        if (!CompatConfig.PLAYER_DEATH_COOK_OFF.get()
-                || !(event.getEntity() instanceof ServerPlayer player)
-                || player.level().isClientSide) {
+        if (!CompatConfig.MOB_DEATH_COOK_OFF.get()) {
             return;
         }
-        boolean found = false;
-        for (NonNullList<ItemStack> compartment : List.of(
-                player.getInventory().items,
-                player.getInventory().armor,
-                player.getInventory().offhand)) {
-            for (int slot = 0; slot < compartment.size(); slot++) {
-                ItemStack stack = compartment.get(slot);
-                if (!stack.isEmpty() && RackCompatUtil.isLoadableAmmo(stack)) {
-                    compartment.set(slot, ItemStack.EMPTY);
-                    found = true;
-                }
+        if (!(event.getEntity() instanceof LivingEntity living)) {
+            return;
+        }
+        if (!(living.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        List<ItemStack> carried = new ArrayList<>();
+        living.getAllSlots().forEach(carried::add);
+        if (living instanceof Player player) {
+            carried.addAll(player.getInventory().items);
+        } else {
+            addMaidInventoryStacks(living, carried);
+        }
+        double totalWeight = 0.0;
+        boolean smoke = false;
+        boolean fire = false;
+        for (ItemStack stack : carried) {
+            if (stack.isEmpty()) {
+                continue;
+            }
+            CookOffYield yield = CookOffYield.of(stack, serverLevel.getServer());
+            if (yield.weight() > 0.0) {
+                totalWeight += yield.weight() * stack.getCount();
+                smoke |= yield.smoke();
+                fire |= yield.fire();
+                stack.setCount(0);
             }
         }
-        if (!found) {
+        if (totalWeight <= 0.0) {
             return;
         }
-        scheduleCookOffExplosions(player.serverLevel(), player.blockPosition());
+        scheduleCookOffExplosions(serverLevel, living.position(),
+                CookOffYield.powerScale(totalWeight), smoke, fire);
         if (CompatConfig.DEBUG_LOGGING.get()) {
-            CBCMSMWCompat.LOGGER.info("[cbcmsmwcompat] Cook off: player {} died carrying CBC ammunition",
-                    player.getName().getString());
+            CBCMSMWCompat.LOGGER.info("[cbcmsmwcompat] Cook off: {} died carrying CBC ammunition with yield {}",
+                    living.getName().getString(), String.format("%.2f", totalWeight));
+        }
+    }
+
+    /**
+     * Touhou Little Maid maids carry items in their own inventory instead of vanilla
+     * equipment slots, so their backpack is enumerated explicitly. Everything else is
+     * read through reflection: the maid mod is optional and must never be required.
+     */
+    private static void addMaidInventoryStacks(LivingEntity living, List<ItemStack> carried) {
+        Class<?> type = living.getClass();
+        while (type != null) {
+            if (type.getName().equals("com.github.tartaricacid.touhoulittlemaid.entity.passive.EntityMaid")) {
+                break;
+            }
+            type = type.getSuperclass();
+        }
+        if (type == null) {
+            return;
+        }
+        try {
+            Object handler = living.getClass().getMethod("getMaidInv").invoke(living);
+            if (handler instanceof IItemHandler inventory) {
+                for (int slot = 0; slot < inventory.getSlots(); slot++) {
+                    carried.add(inventory.getStackInSlot(slot));
+                }
+            }
+        } catch (Throwable ignored) {
+            // Cook off must never break because of an optional mod.
         }
     }
 
@@ -456,15 +563,17 @@ public final class CookOffHandler {
     }
 
     /** Detonates one cook off explosion at the stored position. */
-    private static void explodeCookOff(ServerLevel level, Vec3 center, double scale) {
-        float blockRadius = (float) (CompatConfig.COOK_OFF_BLOCK_RADIUS.get() * scale);
-        float entityRadius = (float) (CompatConfig.COOK_OFF_ENTITY_RADIUS.get() * scale);
+    private static void explodeCookOff(ServerLevel level, Vec3 center, double scale, boolean fire) {
+        float radius = (float) (CompatConfig.COOK_OFF_BASE_RADIUS.get() * scale);
         double jitter = CompatConfig.COOK_OFF_EXPLOSION_JITTER.get();
         double x = center.x;
         double z = center.z;
         if (jitter > 0.0) {
             x += (level.random.nextDouble() * 2.0 - 1.0) * jitter;
             z += (level.random.nextDouble() * 2.0 - 1.0) * jitter;
+        }
+        if (CompatConfig.SABLE_COOK_OFF.get() && SableCompat.isSableLoaded()) {
+            SableCompat.damageStructuresInBlast(level, center, radius);
         }
         ShellExplosion explosion = new ShellExplosion(
                 level,
@@ -473,9 +582,9 @@ public final class CookOffHandler {
                 x,
                 center.y,
                 z,
-                blockRadius,
-                entityRadius,
-                CompatConfig.COOK_OFF_FIRE.get(),
+                radius,
+                radius,
+                fire || CompatConfig.COOK_OFF_FIRE.get(),
                 getExplosiveInteraction());
         CreateBigCannons.handleCustomExplosion(level, explosion);
     }
@@ -514,14 +623,19 @@ public final class CookOffHandler {
         if (!(radius > 0.0) || radius > 24.0) {
             return;
         }
-        for (BlockPos pos : spherePositions(explosion.center(), radius)) {
+        Vec3 worldCenter = SableCompat.projectOutOfSubLevel(serverLevel, explosion.center());
+        for (BlockPos pos : spherePositions(worldCenter, radius)) {
             cookOffBlockInBlast(serverLevel, pos);
+        }
+        if (CompatConfig.SABLE_COOK_OFF.get() && SableCompat.isSableLoaded()) {
+            SableCompat.forEachBlockInBlast(serverLevel, worldCenter, radius,
+                    CookOffHandler::cookOffBlockInBlast);
         }
 
         // Missiles and launcher entities (vestalihy launchers are entities that do not
         // take explosion damage) also cook off when caught in the blast.
         if (CompatConfig.MIANBAOS_COOK_OFF.get() || CompatConfig.VESTALIHY_COOK_OFF.get()) {
-            AABB blastArea = AABB.ofSize(explosion.center(), radius * 2.0, radius * 2.0, radius * 2.0);
+            AABB blastArea = AABB.ofSize(worldCenter, radius * 2.0, radius * 2.0, radius * 2.0);
             for (Entity entity : serverLevel.getEntities(null, blastArea)) {
                 if (entity.isRemoved()) {
                     continue;
@@ -546,10 +660,17 @@ public final class CookOffHandler {
         Set<BlockPos> candidates = new HashSet<>(event.getAffectedBlocks());
 
         // Storages that survive the blast but are still inside the blast radius
-        // also cook off: being caught in the blast guarantees detonation.
+        // also cook off: being caught in the blast guarantees detonation. Sub-level
+        // storages are enumerated in plot coordinates as well so chain cook offs
+        // work inside and between Sable structures.
         double radius = explosion.radius();
+        Vec3 worldCenter = SableCompat.projectOutOfSubLevel(serverLevel, explosion.center());
         if (radius > 0.0 && radius <= 24.0) {
-            candidates.addAll(spherePositions(explosion.center(), radius));
+            candidates.addAll(spherePositions(worldCenter, radius));
+            if (CompatConfig.SABLE_COOK_OFF.get() && SableCompat.isSableLoaded()) {
+                SableCompat.forEachBlockInBlast(serverLevel, worldCenter, radius,
+                        (ignored, pos) -> candidates.add(pos));
+            }
         }
 
         for (BlockPos pos : candidates) {
@@ -578,7 +699,7 @@ public final class CookOffHandler {
             if (!CompatConfig.BLAST_COOK_OFF.get()) {
                 return;
             }
-            if (level.getBlockEntity(pos) instanceof AmmoRackBlockEntity rack && RackCompatUtil.hasAmmo(rack)) {
+            if (level.getBlockEntity(pos) instanceof AmmoRackBlockEntity rack) {
                 RackCompatUtil.cookOff(level, pos, rack);
             }
         } else if (CompatConfig.DEPOT_COOK_OFF.get() && RackCompatUtil.isDepotWithAmmo(level, pos)) {
