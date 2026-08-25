@@ -72,9 +72,9 @@ public final class CompatConfig {
                 .defineInRange("power.baseRadius", 10.0, 1.0, 64.0);
         COOK_OFF_MAX_MULTIPLIER = builder
                 .comment("Maximum power multiplier a cook off can reach from the ammunition yield.",
-                        "Power scales with the cube of the explosion radius, so a multiplier of 2",
-                        "enlarges the radius by about 1.26x.")
-                .defineInRange("power.maxMultiplier", 2.0, 1.0, 64.0);
+                        "Power scales with the cube of the explosion radius, so a multiplier of 1",
+                        "keeps the base radius (no stacking amplification).")
+                .defineInRange("power.maxMultiplier", 1.0, 1.0, 64.0);
         COOK_OFF_WEIGHT_STANDARD = builder
                 .comment("Yield weight of one standard shell (CBCMW medium ammunition, cartridges,",
                         "propellant and ordinary shells).")

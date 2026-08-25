@@ -11,9 +11,9 @@ foreach ($dir in (Get-ChildItem "D:\.minecraft\versions" -Directory)) {
     $modsDir = Join-Path $dir.FullName "mods"
     if (-not (Test-Path $modsDir)) { continue }
     $cbcJarProbe = Get-ChildItem $modsDir -Filter "*.jar" | Where-Object { $_.Name -like "*createbigcannons*5.11.7*" } | Select-Object -First 1
+    $cbcmsProbe = Get-ChildItem $modsDir -Filter "*.jar" | Where-Object { $_.Name -like "*CBC-Military-Supplement*" } | Select-Object -First 1
     if ((Test-Path (Join-Path $modsDir "cbcmodernwarfare-0.0.6v+mc.1.21.1-neoforge.jar")) -and
-        (Test-Path (Join-Path $modsDir "CBC-Military-Supplement-1.21.1-2.1.0.jar")) -and
-        (Test-Path (Join-Path $modsDir "big_cannons_aeronautics_fix-0.1-Alpha.jar")) -and
+        $null -ne $cbcmsProbe -and
         ($null -ne $cbcJarProbe)) {
         $instanceDir = $dir.FullName
         $modsFolder = $modsDir
@@ -54,7 +54,7 @@ foreach ($p in @("$libs\net\neoforged\fancymodloader\loader\4.0.42\loader-4.0.42
 # 4. Mods needed for compilation
 $createJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "*create-1.21.1*.jar" -and $_.Name -notlike "*bigcannons*" } | Select-Object -First 1
 $cbcJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "*createbigcannons*5.11.7*" } | Select-Object -First 1
-$cbcmsJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "CBC-Military-Supplement*" } | Select-Object -First 1
+$cbcmsJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "*CBC-Military-Supplement*" } | Select-Object -First 1
 $cbcmwJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "cbcmodernwarfare-0.0.6v*" } | Select-Object -First 1
 $rplJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "ritchiesprojectilelib*" } | Select-Object -First 1
 $sableJar = Get-ChildItem $modsFolder -Filter "*.jar" | Where-Object { $_.Name -like "sable-neoforge*" } | Select-Object -First 1
@@ -78,10 +78,7 @@ try {
             $flatPath = Join-Path $flatBase $flatName
             [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $flatPath, $true)
             Set-ItemProperty -Path $flatPath -Name IsReadOnly -Value $false
-            $unpackDir = Join-Path $flatClasses ($flatName + "_unpacked")
-            if (Test-Path $unpackDir) { Remove-Item -Recurse -Force $unpackDir }
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($flatPath, $unpackDir)
-            $cp += $unpackDir
+            $cp += $flatPath
         }
     }
 } finally {
@@ -99,10 +96,7 @@ if ($sableJar) {
                 $flatPath = Join-Path $flatBase $flatName
                 [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $flatPath, $true)
                 Set-ItemProperty -Path $flatPath -Name IsReadOnly -Value $false
-                $unpackDir = Join-Path $flatClasses ($flatName + "_unpacked")
-                if (Test-Path $unpackDir) { Remove-Item -Recurse -Force $unpackDir }
-                [System.IO.Compression.ZipFile]::ExtractToDirectory($flatPath, $unpackDir)
-                $cp += $unpackDir
+                $cp += $flatPath
             }
         }
     } finally {
@@ -138,7 +132,7 @@ Copy-Item -Force "$ws\src\main\resources\cbcmsmwcompat.mixins.json" $jarTmp
 Copy-Item -Force "$ws\src\main\resources\logo.png" $jarTmp
 
 
-$jarOut = Join-Path $ws "cbcmsmwcompat-2.0.1.jar"
+$jarOut = Join-Path $ws "cbcmsmwcompat-2.0.2.jar"
 if (Test-Path $jarOut) { Remove-Item -Force $jarOut }
 Push-Location $jarTmp
 & $jar cf $jarOut "*"
@@ -152,6 +146,6 @@ if (Test-Path $jarOut) {
 }
 
 # Deploy: copy to the game mods folder and remove older builds of this mod.
-Copy-Item -Force $jarOut (Join-Path $modsFolder "cbcmsmwcompat-2.0.1.jar")
-Get-ChildItem $modsFolder -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.0.1.jar" } | Remove-Item -Force
+Copy-Item -Force $jarOut (Join-Path $modsFolder "cbcmsmwcompat-2.0.2.jar")
+Get-ChildItem $modsFolder -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.0.2.jar" } | Remove-Item -Force
 Write-Host "Deployed to: $modsFolder"

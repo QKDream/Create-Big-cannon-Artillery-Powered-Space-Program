@@ -20,7 +20,7 @@
 - **弹药殉爆**（灵感来自战争雷霆）：
   - 装有弹药的弹药架或置物台被任意 CBC 系炮弹直接命中或接触必定殉爆（弹射物接触引爆），被任意爆炸波及也必定殉爆（直接命中不再有概率只打坏本体而不殉爆）；
   - **威力由弹种与数量决定**：迫击石弹、穿甲弹、脱壳穿甲弹等没有炸药的弹头不会殉爆；高爆弹、破甲弹等殉爆威力更大；CBCMW 中型弹药全部会殉爆；
-  - 数量越多威力越大，最高达到基础威力的 **2 倍**（半径按立方根换算）；
+  - 数量越多威力越大，总上限默认固定为基础威力的 **1 倍**（半径按立方根换算，可通过配置调大）；
   - 殉爆弹药的特殊效果也会触发：烟雾弹释放烟幕、燃烧弹引发火焰；
   - 面包学 (Mianbaos Modern Warfare) 与 Vestalihy 的导弹/火箭发射器及飞行中的导弹被命中也会殉爆（威力稍小）；飞行中导弹被破片命中也会殉爆；空发射器不会殉爆；
   - 任何携带 CBC 类弹药（包括发射药）的**生物（不止玩家）**死亡时都会殉爆，威力规则与弹药架相同；
@@ -30,7 +30,7 @@
 
 ### 安装
 1. 安装下方的前置 mod。
-2. 将仓库根目录的 `cbcmsmwcompat-2.0.1.jar` 放入对应游戏实例的 `mods` 文件夹。
+2. 将仓库根目录的 `cbcmsmwcompat-2.0.2.jar` 放入对应游戏实例的 `mods` 文件夹。
 3. 首次启动后生成配置文件：`world/serverconfig/cbcmsmwcompat-server.toml`。
 
 ### 前置要求
@@ -62,7 +62,7 @@
 - **Детонация боезапаса** (вдохновлена War Thunder):
   - стеллаж или депо с боеприпасами гарантированно детонирует при прямом попадании или контакте любого снаряда семейства CBC (контактный подрыв снаряда) и при взрывной волне (прямое попадание больше не может просто разрушить блок без детонации);
   - **мощность зависит от типа и количества снарядов**: каменные мортирные ядра, бронебойные и подкалиберные снаряды без взрывчатки не детонируют; фугасные и кумулятивные снаряды детонируют с повышенной мощностью; все средние боеприпасы CBCMW детонируют;
-  - чем больше боеприпасов, тем выше мощность — до **2 раз** от базовой (радиус растёт по кубическому корню);
+  - чем больше боеприпасов, тем выше мощность — общий предел по умолчанию **1 раз** от базовой (радиус растёт по кубическому корню, настраивается);
   - срабатывают и особые эффекты: дымовые снаряды дают дымовую завесу, зажигательные — огонь;
   - пусковые установки ракет Mianbaos Modern Warfare и Vestalihy, а также ракеты в полёте детонируют при попадании (мощность ниже); летящая ракета детонирует и от осколков; пустые пусковые установки не детонируют;
   - **любое существо (не только игрок)**, несущее боеприпасы CBC (включая метательный заряд), детонирует при смерти по тем же правилам;
@@ -72,7 +72,7 @@
 
 ### Установка
 1. Установите зависимости (см. ниже).
-2. Скопируйте `cbcmsmwcompat-2.0.1.jar` из корня репозитория в папку `mods` нужного экземпляра игры.
+2. Скопируйте `cbcmsmwcompat-2.0.2.jar` из корня репозитория в папку `mods` нужного экземпляра игры.
 3. После первого запуска создаётся конфиг: `world/serverconfig/cbcmsmwcompat-server.toml`.
 
 ### Требования
@@ -101,7 +101,7 @@ It fixes interaction between the water-jacketed ammo racks from CBC Military Sup
 - **Ammunition cook-off** (inspired by War Thunder):
   - a rack or depot holding ammunition always cook offs when directly hit by or touched by any CBC-family projectile (projectile contact detonation) or caught in any explosion blast (a direct hit can no longer just break the block without a cook-off);
   - **power depends on shell type and quantity**: non-explosive warheads such as mortar stone, AP and APFSDS shots do not cook off; HE/HEAT-class shells cook off at increased power; all CBCMW medium ammunition cooks off;
-  - the more ammunition stored, the bigger the blast, up to **2x the base power** (radius scales with the cube root);
+  - the more ammunition stored, the bigger the blast, capped at **1x the base power** by default (radius scales with the cube root, configurable);
   - special effects trigger too: smoke shells release a smoke cloud, incendiary shells spread fire;
   - missile/rocket launchers and in-flight missiles from Mianbaos Modern Warfare and Vestalihy also detonate when hit (slightly weaker); in-flight missiles detonate from fragments too; empty launchers do not detonate;
   - **any mob (not just players)** carrying CBC-family ammunition (including propellant) detonates on death, following the same rules;
@@ -111,7 +111,7 @@ It fixes interaction between the water-jacketed ammo racks from CBC Military Sup
 
 ### Install
 1. Install the dependencies listed below.
-2. Drop `cbcmsmwcompat-2.0.1.jar` from the repository root into the `mods` folder of your game instance.
+2. Drop `cbcmsmwcompat-2.0.2.jar` from the repository root into the `mods` folder of your game instance.
 3. After the first launch a config file is generated: `world/serverconfig/cbcmsmwcompat-server.toml`.
 
 ### Requirements
@@ -144,7 +144,7 @@ Run `build.ps1` in PowerShell. The script locates the game instance containing C
 | `cook_off.explosionInterval` | `4` | 爆炸间隔 (tick) / интервал между взрывами / ticks between explosions |
 | `cook_off.explosionJitter` | `1.5` | 爆炸随机偏移 / случайное смещение / max random offset |
 | `cook_off.power.baseRadius` | `10.0` | 基础爆炸半径 / базовый радиус взрыва / base explosion radius |
-| `cook_off.power.maxMultiplier` | `2.0` | 殉爆威力最大倍率 / максимум мощности / max power multiplier |
+| `cook_off.power.maxMultiplier` | `1.0` | 殉爆威力最大倍率 / максимум мощности / max power multiplier |
 | `cook_off.power.weightStandard` | `1.0` | 普通弹药的威力权重 / вес обычных снарядов / standard shell weight |
 | `cook_off.power.weightExplosive` | `2.0` | 高爆/破甲弹的威力权重 / вес фугасных снарядов / HE warhead weight |
 | `cook_off.power.weightPropellant` | `1.0` | 发射药的威力权重 / вес метательного заряда / propellant weight |
