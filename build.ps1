@@ -132,7 +132,7 @@ Copy-Item -Force "$ws\src\main\resources\cbcmsmwcompat.mixins.json" $jarTmp
 Copy-Item -Force "$ws\src\main\resources\logo.png" $jarTmp
 
 
-$jarOut = Join-Path $ws "cbcmsmwcompat-2.0.2.jar"
+$jarOut = Join-Path $ws "cbcmsmwcompat-2.1.0.jar"
 if (Test-Path $jarOut) { Remove-Item -Force $jarOut }
 Push-Location $jarTmp
 & $jar cf $jarOut "*"
@@ -146,6 +146,6 @@ if (Test-Path $jarOut) {
 }
 
 # Deploy: copy to the game mods folder and remove older builds of this mod.
-Copy-Item -Force $jarOut (Join-Path $modsFolder "cbcmsmwcompat-2.0.2.jar")
-Get-ChildItem $modsFolder -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.0.2.jar" } | Remove-Item -Force
+Copy-Item -Force $jarOut (Join-Path $modsFolder "cbcmsmwcompat-2.1.0.jar")
+Get-ChildItem $modsFolder -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.1.0.jar" } | Remove-Item -Force
 Write-Host "Deployed to: $modsFolder"

@@ -4,7 +4,11 @@ import com.cainiao1053.cbcmoreshells.blocks.ammo_rack.AmmoRackBlockEntity;
 import com.qkdream.cbcmsmwcompat.CBCMSMWCompat;
 import com.qkdream.cbcmsmwcompat.config.CompatConfig;
 import com.qkdream.cbcmsmwcompat.sable.SableCompat;
+import com.cainiao1053.cbcmoreshells.munitions.big_cannon.AbstractCannonTorpedoProjectile;
+import com.cainiao1053.cbcmoreshells.munitions.big_cannon.ShellessFuzedBigCannonProjectile;
+import com.cainiao1053.cbcmoreshells.munitions.racked_projectile.AbstractRackedProjectile;
 import com.simibubi.create.content.logistics.depot.DepotBlockEntity;
+
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -22,6 +26,8 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.block.entity.BlockEntity;
+
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
@@ -46,6 +52,7 @@ public final class CookOffHandler {
     private static final Map<AbstractCannonProjectile, BlockPos> LAST_HIT = new HashMap<>();
     private static final Map<ServerLevel, Set<Entity>> FRAGMENTS = new HashMap<>();
     private static final Map<Entity, Vec3> FRAG_LAST_POS = new HashMap<>();
+    private static long lastTaovSweepLogSecond = Long.MIN_VALUE;
 
     /** Cook off explosions waiting to detonate, so bursts spread over several ticks. */
     private static final List<PendingExplosion> PENDING = new ArrayList<>();
@@ -76,7 +83,13 @@ public final class CookOffHandler {
     /** Queues the multi-explosion burst for one cook off, scaled by {@code scale}. */
     public static void scheduleCookOffExplosions(ServerLevel level, Vec3 center, double scale,
             boolean smoke, boolean fire) {
-        int count = CompatConfig.COOK_OFF_EXPLOSION_COUNT.get();
+        scheduleCookOffExplosions(level, center, scale, smoke, fire,
+                CompatConfig.COOK_OFF_EXPLOSION_COUNT.get());
+    }
+
+    /** Queues a cook off with an explicit number of explosions. */
+    public static void scheduleCookOffExplosions(ServerLevel level, Vec3 center, double scale,
+            boolean smoke, boolean fire, int count) {
         int interval = Math.max(1, CompatConfig.COOK_OFF_EXPLOSION_INTERVAL.get());
         // Block storages inside Sable sub-levels report plot coordinates. Project the
         // blast to the structure's displayed world position so the main world and any
@@ -201,7 +214,8 @@ public final class CookOffHandler {
                     boolean rack = RackCompatUtil.isAmmoRack(level, pos);
                     boolean depot = CompatConfig.DEPOT_COOK_OFF.get() && isDepotBlock(level, pos);
                     boolean launcher = CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos);
-                    if (rack || depot || launcher) {
+                    boolean taovRack = CompatConfig.TAOV_COOK_OFF.get() && TaovCompat.isRackBlockEntity(level.getBlockEntity(pos));
+                    if (rack || depot || launcher || taovRack) {
                         return pos;
                     }
                 }
@@ -291,22 +305,37 @@ public final class CookOffHandler {
         }
     }
 
-    /** Cooks off mianbaos and vestalihy missiles the projectile sweeps through mid-flight. */
+    /** Cooks off in-flight missiles and air munitions the projectile sweeps through mid-flight. */
     private static void sweepMissiles(ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
-        if (!CompatConfig.MIANBAOS_COOK_OFF.get() && !CompatConfig.VESTALIHY_COOK_OFF.get()) {
+        boolean missileMods = CompatConfig.MIANBAOS_COOK_OFF.get() || CompatConfig.VESTALIHY_COOK_OFF.get();
+        boolean airMunitions = CompatConfig.AIR_MUNITION_COOK_OFF.get();
+        if (!missileMods && !airMunitions) {
             return;
         }
         double margin = projectile.getBbWidth() * 0.5 + 0.5;
         AABB area = new AABB(a, b).inflate(margin);
         for (Entity entity : level.getEntities(null, area)) {
-            if (entity == projectile || entity.isRemoved() || !isCookOffMissile(entity)) {
+            if (entity == projectile || entity.isRemoved()) {
+                continue;
+            }
+            boolean cookOff = missileMods && isCookOffMissile(entity);
+            if (!cookOff && airMunitions) {
+                cookOff = isCBCMSAirMunition(entity);
+            }
+            if (!cookOff) {
                 continue;
             }
             if (segmentIntersectsBox(a, b, entity.getBoundingBox().inflate(projectile.getBbWidth() * 0.5 + 0.1))) {
                 cookOffMissile(level, entity);
             }
         }
+        if (airMunitions && CompatConfig.TAOV_COOK_OFF.get()) {
+            AABB taovArea = area.inflate(3.0);
+            logTaovSweep("direct hit sweep", level, taovArea);
+            TaovCompat.detonateAirMunitionsIn(level, taovArea);
+        }
     }
+
 
     /** Cooks off launcher entities (vestalihy tubes, mianbaos turrets) the projectile sweeps through. */
     private static void sweepLauncherEntities(ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
@@ -330,7 +359,9 @@ public final class CookOffHandler {
      * missile launchers are never triggered by fragments.
      */
     private static void sweepFragments(ServerTickEvent.Post event) {
-        if (!CompatConfig.MIANBAOS_COOK_OFF.get() && !CompatConfig.VESTALIHY_COOK_OFF.get()) {
+        boolean missileMods = CompatConfig.MIANBAOS_COOK_OFF.get() || CompatConfig.VESTALIHY_COOK_OFF.get();
+        boolean airMunitions = CompatConfig.AIR_MUNITION_COOK_OFF.get();
+        if (!missileMods && !airMunitions) {
             return;
         }
         for (ServerLevel serverLevel : event.getServer().getAllLevels()) {
@@ -353,13 +384,26 @@ public final class CookOffHandler {
                 }
                 AABB area = new AABB(previous, current).inflate(1.0);
                 for (Entity entity : serverLevel.getEntities(null, area)) {
-                    if (entity == fragment || entity.isRemoved() || !isCookOffMissile(entity)) {
+                    if (entity == fragment || entity.isRemoved()) {
+                        continue;
+                    }
+                    boolean cookOff = missileMods && isCookOffMissile(entity);
+                    if (!cookOff && airMunitions) {
+                        cookOff = isCBCMSAirMunition(entity);
+                    }
+                    if (!cookOff) {
                         continue;
                     }
                     if (segmentIntersectsBox(previous, current, entity.getBoundingBox().inflate(0.5))) {
                         cookOffMissile(serverLevel, entity);
                     }
                 }
+                if (airMunitions && CompatConfig.TAOV_COOK_OFF.get()) {
+                    AABB taovArea = area.inflate(2.0);
+                    logTaovSweep("fragment sweep", serverLevel, taovArea);
+                    TaovCompat.detonateAirMunitionsIn(serverLevel, taovArea);
+                }
+
             }
         }
     }
@@ -371,6 +415,17 @@ public final class CookOffHandler {
         }
         return CompatConfig.VESTALIHY_COOK_OFF.get() && VestalihyCompatUtil.isMissile(entity);
     }
+
+    /**
+     * True when the entity is an in-flight CBC Military Supplement air munition:
+     * torpedoes, racked rockets, bombs, depth charges and cannon rockets.
+     */
+    private static boolean isCBCMSAirMunition(Entity entity) {
+        return entity instanceof AbstractCannonTorpedoProjectile
+                || entity instanceof AbstractRackedProjectile
+                || entity instanceof ShellessFuzedBigCannonProjectile;
+    }
+
 
     /** True when the entity is a launcher platform of an enabled missile mod. */
     private static boolean isCookOffLauncherEntity(Entity entity) {
@@ -403,10 +458,14 @@ public final class CookOffHandler {
             RackCompatUtil.cookOffDepot(level, pos, depot);
         } else if (CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos)) {
             cookOffLauncher(level, pos);
+        } else if (CompatConfig.TAOV_COOK_OFF.get()
+                && TaovCompat.isRackBlockEntity(level.getBlockEntity(pos))) {
+            cookOffTaovRack(level, pos, level.getBlockEntity(pos));
         }
     }
 
-    private static BlockPos findCookOffTarget(ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
+    private static BlockPos findCookOffTarget(
+ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
         double dx = b.x - a.x;
         double dy = b.y - a.y;
         double dz = b.z - a.z;
@@ -431,9 +490,11 @@ public final class CookOffHandler {
                     boolean rack = RackCompatUtil.isAmmoRack(level, pos);
                     boolean depot = CompatConfig.DEPOT_COOK_OFF.get() && isDepotBlock(level, pos);
                     boolean launcher = CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos);
-                    if (!rack && !depot && !launcher) {
+                    boolean taovRack = CompatConfig.TAOV_COOK_OFF.get() && TaovCompat.isRackBlockEntity(level.getBlockEntity(pos));
+                    if (!rack && !depot && !launcher && !taovRack) {
                         continue;
                     }
+
                     AABB swept = new AABB(
                             x - halfWidth, y - halfHeight, z - halfWidth,
                             x + 1 + halfWidth, y + 1 + halfHeight, z + 1 + halfWidth);
@@ -472,11 +533,19 @@ public final class CookOffHandler {
         }
     }
 
-    /** Removes the missile entity and starts its cook off burst at the reduced missile power. */
+    /** Removes the missile entity and starts its cook off at the reduced missile power. */
     public static void cookOffMissile(ServerLevel level, Entity missile) {
         Vec3 center = missile.position();
+        boolean airMunition = isCBCMSAirMunition(missile);
         missile.discard();
-        scheduleCookOffExplosions(level, center, CompatConfig.MISSILE_POWER_SCALE.get());
+        if (airMunition) {
+            // Destroyed air ammunition pops once at reduced power instead of a full burst.
+            scheduleCookOffExplosions(level, center, CompatConfig.CBCMS_AIR_POWER_SCALE.get(),
+                    false, false, 1);
+        } else {
+            scheduleCookOffExplosions(level, center, CompatConfig.MISSILE_POWER_SCALE.get());
+        }
+
         if (CompatConfig.DEBUG_LOGGING.get()) {
             CBCMSMWCompat.LOGGER.info("[cbcmsmwcompat] Cook off: missile at {}", center);
         }
@@ -505,10 +574,25 @@ public final class CookOffHandler {
     }
 
     /**
+     * Destroys a Tau/Hellfire rack holding ammunition and starts its cook off burst.
+     */
+    public static void cookOffTaovRack(ServerLevel level, BlockPos pos, BlockEntity rack) {
+        if (TaovCompat.remainingAmmo(rack) <= 0) {
+            return;
+        }
+        level.destroyBlock(pos, false);
+        scheduleCookOffExplosions(level, Vec3.atCenterOf(pos), CompatConfig.TAOV_RACK_POWER_SCALE.get());
+        if (CompatConfig.DEBUG_LOGGING.get()) {
+            CBCMSMWCompat.LOGGER.info("[cbcmsmwcompat] Cook off: taov rack at {}", pos);
+        }
+    }
+
+    /**
      * Any living entity (players included) dying while carrying CBC-family ammunition or
      * propellant detonates. The power follows the same shell type and quantity rules as
      * an ammo rack: more ammunition means more power, capped at the configured maximum.
      */
+
     @SubscribeEvent
     public static void onLivingDeath(LivingDeathEvent event) {
         if (!CompatConfig.MOB_DEATH_COOK_OFF.get()) {
@@ -579,6 +663,20 @@ public final class CookOffHandler {
         } catch (Throwable ignored) {
             // Cook off must never break because of an optional mod.
         }
+    }
+
+    /** Rate-limited diagnostic for the per-tick TaovCompat air munition sweeps. */
+    private static void logTaovSweep(String source, ServerLevel level, AABB area) {
+        if (!CompatConfig.DEBUG_LOGGING.get()) {
+            return;
+        }
+        long second = System.nanoTime() / 1_000_000_000L;
+        if (second == lastTaovSweepLogSecond) {
+            return;
+        }
+        lastTaovSweepLogSecond = second;
+        CBCMSMWCompat.LOGGER.info("[cbcmsmwcompat] taov sweep from {} in {}: area {}",
+                source, level.dimension().location(), area);
     }
 
     private static boolean segmentIntersectsBox(Vec3 a, Vec3 b, AABB box) {
@@ -701,17 +799,29 @@ public final class CookOffHandler {
 
         // Missiles and launcher entities (vestalihy launchers are entities that do not
         // take explosion damage) also cook off when caught in the blast.
-        if (CompatConfig.MIANBAOS_COOK_OFF.get() || CompatConfig.VESTALIHY_COOK_OFF.get()) {
+        boolean missileMods = CompatConfig.MIANBAOS_COOK_OFF.get() || CompatConfig.VESTALIHY_COOK_OFF.get();
+        boolean airMunitions = CompatConfig.AIR_MUNITION_COOK_OFF.get();
+        if (missileMods || airMunitions) {
             AABB blastArea = AABB.ofSize(worldCenter, radius * 2.0, radius * 2.0, radius * 2.0);
             for (Entity entity : serverLevel.getEntities(null, blastArea)) {
                 if (entity.isRemoved()) {
                     continue;
                 }
-                if (isCookOffMissile(entity)) {
+                if (missileMods && isCookOffMissile(entity)) {
+                    cookOffMissile(serverLevel, entity);
+                } else if (airMunitions && isCBCMSAirMunition(entity)) {
                     cookOffMissile(serverLevel, entity);
                 } else if (isCookOffLauncherEntity(entity)) {
                     cookOffLauncherEntity(serverLevel, entity);
                 }
+            }
+            if (airMunitions && CompatConfig.TAOV_COOK_OFF.get()) {
+                double taovHalf = taovBlastHalf(radius);
+                CBCMSMWCompat.LOGGER.info(
+                        "[cbcmsmwcompat] taov sweep from explosion start: radius {} half {} center {}",
+                        radius, taovHalf, worldCenter);
+                TaovCompat.detonateAirMunitionsIn(serverLevel,
+                        AABB.ofSize(worldCenter, taovHalf * 2.0, taovHalf * 2.0, taovHalf * 2.0));
             }
         }
     }
@@ -750,10 +860,31 @@ public final class CookOffHandler {
             }
             if (isCookOffMissile(entity)) {
                 cookOffMissile(serverLevel, entity);
+            } else if (CompatConfig.AIR_MUNITION_COOK_OFF.get() && isCBCMSAirMunition(entity)) {
+                cookOffMissile(serverLevel, entity);
             } else if (isCookOffLauncherEntity(entity)) {
                 cookOffLauncherEntity(serverLevel, entity);
             }
         }
+        if (CompatConfig.AIR_MUNITION_COOK_OFF.get() && CompatConfig.TAOV_COOK_OFF.get()) {
+            double taovHalf = taovBlastHalf(radius);
+            CBCMSMWCompat.LOGGER.info(
+                    "[cbcmsmwcompat] taov sweep from explosion detonate: radius {} half {} center {}",
+                    radius, taovHalf, worldCenter);
+            TaovCompat.detonateAirMunitionsIn(serverLevel,
+                    AABB.ofSize(worldCenter, taovHalf * 2.0, taovHalf * 2.0, taovHalf * 2.0));
+        }
+
+    }
+
+    /**
+     * Half-size of the box in which taov air munitions cook off from a blast. Taov
+     * projectiles are not entities and move several blocks per tick, so the nominal
+     * explosion radius (the shell's power) is far too small to catch them; use a
+     * generous box instead, capped to keep chain reactions bounded.
+     */
+    private static double taovBlastHalf(double radius) {
+        return Math.min(24.0, Math.max(radius * 2.0, 6.0));
     }
 
     /** Cooks off whichever cook-off-capable storage is at the position, if any. */
@@ -775,6 +906,9 @@ public final class CookOffHandler {
             }
         } else if (CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos)) {
             cookOffLauncher(level, pos);
+        } else if (CompatConfig.TAOV_COOK_OFF.get()
+                && TaovCompat.isRackBlockEntity(level.getBlockEntity(pos))) {
+            cookOffTaovRack(level, pos, level.getBlockEntity(pos));
         }
     }
 

@@ -30,6 +30,10 @@ public final class CompatConfig {
     public static final ModConfigSpec.BooleanValue VESTALIHY_COOK_OFF;
     public static final ModConfigSpec.DoubleValue VESTALIHY_POWER_SCALE;
     public static final ModConfigSpec.BooleanValue MOB_DEATH_COOK_OFF;
+    public static final ModConfigSpec.BooleanValue AIR_MUNITION_COOK_OFF;
+    public static final ModConfigSpec.DoubleValue CBCMS_AIR_POWER_SCALE;
+    public static final ModConfigSpec.BooleanValue TAOV_COOK_OFF;
+    public static final ModConfigSpec.DoubleValue TAOV_RACK_POWER_SCALE;
     public static final ModConfigSpec.BooleanValue SABLE_COOK_OFF;
     public static final ModConfigSpec.BooleanValue DEBUG_LOGGING;
 
@@ -69,7 +73,7 @@ public final class CompatConfig {
         COOK_OFF_BASE_RADIUS = builder
                 .comment("Base radius of each cook off explosion. The yield of the stored ammunition",
                         "(shell type and quantity, see the power.* settings below) scales this radius up.")
-                .defineInRange("power.baseRadius", 10.0, 1.0, 64.0);
+                .defineInRange("power.baseRadius", 3.0, 1.0, 64.0);
         COOK_OFF_MAX_MULTIPLIER = builder
                 .comment("Maximum power multiplier a cook off can reach from the ammunition yield.",
                         "Power scales with the cube of the explosion radius, so a multiplier of 1",
@@ -121,6 +125,26 @@ public final class CompatConfig {
                         "quantity rules as an ammo rack. Touhou Little Maid maids also count",
                         "the ammunition stored in their maid inventory.")
                 .define("mobDeathEnabled", true);
+        AIR_MUNITION_COOK_OFF = builder
+                .comment("Passive detonation of in-flight air munitions: CBC Military Supplement",
+                        "torpedoes, rockets, depth charges and bombs, and the in-flight Tau/Hellfire",
+                        "missiles of taov_weapons, detonate when directly hit by a projectile, hit",
+                        "by fragments (shrapnel bursts) or caught in an explosion blast.",
+                        "No proximity fuze is provided: proximity airbursts are handled by other mods.")
+                .define("airMunitionCookOffEnabled", true);
+        CBCMS_AIR_POWER_SCALE = builder
+                .comment("Explosion radius multiplier for the detonation of CBC Military Supplement",
+                        "air munitions in flight (torpedoes, rockets, depth charges and bombs).",
+                        "A destroyed air munition detonates once at this reduced power.")
+                .defineInRange("cbcmsAirPowerScale", 0.5, 0.1, 4.0);
+        TAOV_COOK_OFF = builder
+                .comment("Tau and Hellfire racks of taov_weapons holding ammunition cook off when",
+                        "directly hit or caught in a blast, and their in-flight missiles detonate",
+                        "when hit by a projectile, fragments or an explosion blast.")
+                .define("taovEnabled", true);
+        TAOV_RACK_POWER_SCALE = builder
+                .comment("Explosion radius multiplier for Tau/Hellfire rack cook offs.")
+                .defineInRange("taovRackPowerScale", 1.0, 0.1, 4.0);
         SABLE_COOK_OFF = builder
                 .comment("Sable sub-level structures caught in a cook off blast take structural",
                         "damage: blocks inside the blast radius are destroyed with the usual",

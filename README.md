@@ -26,11 +26,14 @@
   - 任何携带 CBC 类弹药（包括发射药）的**生物（不止玩家）**死亡时都会殉爆，威力规则与弹药架相同；
   - 车万女仆联动：女仆死亡殉爆时会计入其背包中的全部 CBC 弹药（不只手中的）；修复置物台上的发射药（Powder Charge）不殉爆的问题；
   - Sable 联动：殉爆会对爆炸范围内的 Sable 子层级结构造成结构损伤，爆炸位置会正确映射到结构的世界位置，可伤及主世界与相邻结构。
+  - **CBCMS 空中弹药被动引爆**：CBC 军事补充包的鱼雷、火箭弹、深水炸弹、炸弹在飞行中被任意弹丸直击、破片命中或爆炸波及即殉爆，威力单独下调且只爆炸一次；
+  - **taov_weapons 联动**：Tau / 地狱火挂架被直击或爆炸波及殉爆；其飞行中的导弹（Shaolib `ProjectileType` 体系，非实体）被直击、破片命中或爆炸波及即引爆；
+  - **不含近炸引信**：本 mod 不提供近炸空爆，近炸由其他 mod 负责；
   - 修复弹药架连环殉爆导致游戏崩溃的问题。
 
 ### 安装
 1. 安装下方的前置 mod。
-2. 将仓库根目录的 `cbcmsmwcompat-2.0.2.jar` 放入对应游戏实例的 `mods` 文件夹。
+2. 将仓库根目录的 `cbcmsmwcompat-2.1.0.jar` 放入对应游戏实例的 `mods` 文件夹。
 3. 首次启动后生成配置文件：`world/serverconfig/cbcmsmwcompat-server.toml`。
 
 ### 前置要求
@@ -68,11 +71,14 @@
   - **любое существо (не только игрок)**, несущее боеприпасы CBC (включая метательный заряд), детонирует при смерти по тем же правилам;
   - интеграция с Touhou Little Maid: при гибели горничной учитываются все боеприпасы CBC в её рюкзаке, а не только в руках; исправлено отсутствие детонации метательного заряда на депо;
   - интеграция с Sable: взрыв наносит структурный урон постройкам Sable в радиусе взрыва и корректно переносится в мировые координаты конструкции, повреждая основной мир и соседние постройки.
+  - **Пассивная детонация воздушных боеприпасов CBCMS**: торпеды, ракеты, глубинные бомбы и бомбы CBC Military Supplement в полёте детонируют при прямом попадании снаряда, попадании осколков или взрывной волне — мощность отдельно снижена, взрыв одиночный;
+  - **Интеграция с taov_weapons**: стеллажи Tau/Hellfire детонируют при прямом попадании или взрывной волне; их ракеты в полёте (система Shaolib `ProjectileType`, не сущности) детонируют при прямом попадании, осколках или взрывной волне;
+  - **Без неконтактного взрывателя**: мод не добавляет неконтактный (proximity) взрыватель — воздушный подрыв по близости обеспечивают другие моды;
   - исправлен вылет игры при цепной детонации стеллажей.
 
 ### Установка
 1. Установите зависимости (см. ниже).
-2. Скопируйте `cbcmsmwcompat-2.0.2.jar` из корня репозитория в папку `mods` нужного экземпляра игры.
+2. Скопируйте `cbcmsmwcompat-2.1.0.jar` из корня репозитория в папку `mods` нужного экземпляра игры.
 3. После первого запуска создаётся конфиг: `world/serverconfig/cbcmsmwcompat-server.toml`.
 
 ### Требования
@@ -107,11 +113,14 @@ It fixes interaction between the water-jacketed ammo racks from CBC Military Sup
   - **any mob (not just players)** carrying CBC-family ammunition (including propellant) detonates on death, following the same rules;
   - Touhou Little Maid integration: a maid's death cook-off counts all CBC ammunition in her backpack, not just what she holds; fixed propellant (Powder Charge) on depots not cooking off;
   - Sable integration: cook-off blasts deal structural damage to Sable sub-level structures within the blast radius and are projected to the structure's world position, damaging the main world and neighbouring structures.
+  - **Passive detonation of CBCMS air munitions**: in-flight CBC Military Supplement torpedoes, rockets, depth charges and bombs detonate when directly hit by a projectile, hit by fragments or caught in an explosion blast, at separately reduced power in a single explosion;
+  - **taov_weapons integration**: Tau and Hellfire racks cook off when directly hit or caught in a blast, and their in-flight missiles (Shaolib `ProjectileType` system, not entities) detonate when hit by a projectile, fragments or an explosion blast;
+  - **No proximity fuze**: this mod adds no proximity airburst fuze; proximity detonation is handled by other mods;
   - fixed a crash caused by chain cook-offs between racks.
 
 ### Install
 1. Install the dependencies listed below.
-2. Drop `cbcmsmwcompat-2.0.2.jar` from the repository root into the `mods` folder of your game instance.
+2. Drop `cbcmsmwcompat-2.1.0.jar` from the repository root into the `mods` folder of your game instance.
 3. After the first launch a config file is generated: `world/serverconfig/cbcmsmwcompat-server.toml`.
 
 ### Requirements
@@ -143,7 +152,7 @@ Run `build.ps1` in PowerShell. The script locates the game instance containing C
 | `cook_off.explosionCount` | `3` | 单次殉爆爆炸次数 (1-10) / число взрывов / explosions per cook-off |
 | `cook_off.explosionInterval` | `4` | 爆炸间隔 (tick) / интервал между взрывами / ticks between explosions |
 | `cook_off.explosionJitter` | `1.5` | 爆炸随机偏移 / случайное смещение / max random offset |
-| `cook_off.power.baseRadius` | `10.0` | 基础爆炸半径 / базовый радиус взрыва / base explosion radius |
+| `cook_off.power.baseRadius` | `3.0` | 基础爆炸半径 / базовый радиус взрыва / base explosion radius |
 | `cook_off.power.maxMultiplier` | `1.0` | 殉爆威力最大倍率 / максимум мощности / max power multiplier |
 | `cook_off.power.weightStandard` | `1.0` | 普通弹药的威力权重 / вес обычных снарядов / standard shell weight |
 | `cook_off.power.weightExplosive` | `2.0` | 高爆/破甲弹的威力权重 / вес фугасных снарядов / HE warhead weight |
@@ -153,6 +162,16 @@ Run `build.ps1` in PowerShell. The script locates the game instance containing C
 | `cook_off.fire` | `false` | 是否生成火焰 / создавать ли огонь / create fire |
 | `cook_off.mobDeathEnabled` | `true` | 携带弹药的生物死亡殉爆 / детонация существ при смерти / mob death cook-off |
 | `cook_off.sableEnabled` | `true` | Sable 子层级结构损伤 / структурный урон Sable / Sable sub-level damage |
+| `cook_off.mianbaosEnabled` | `true` | 面包学联动 / интеграция Mianbaos / Mianbaos integration |
+| `cook_off.mianbaosPowerScale` | `0.8` | 面包学发射器殉爆威力倍率 / мощность пусковых Mianbaos / Mianbaos launcher power scale |
+| `cook_off.missilePowerScale` | `0.5` | 飞行中导弹殉爆威力倍率 / мощность ракет в полёте / in-flight missile power scale |
+| `cook_off.vestalihyEnabled` | `true` | Vestalihy 联动 / интеграция Vestalihy / Vestalihy integration |
+| `cook_off.vestalihyPowerScale` | `0.8` | Vestalihy 发射器殉爆威力倍率 / мощность пусковых Vestalihy / Vestalihy launcher power scale |
+| `cook_off.airMunitionCookOffEnabled` | `true` | 空中弹药被动引爆（不含近炸）/ пассивная детонация (без proximity-взрывателя) / passive air munition detonation (no proximity fuze) |
+| `cook_off.cbcmsAirPowerScale` | `0.5` | CBCMS 空中弹药引爆威力倍率 / мощность воздушных боеприпасов CBCMS / CBCMS air munition power scale |
+| `cook_off.taovEnabled` | `true` | Tau/地狱火联动 / интеграция Tau/Hellfire / Tau/Hellfire integration |
+| `cook_off.taovRackPowerScale` | `1.0` | Tau/地狱火挂架殉爆威力倍率 / мощность стеллажей Tau/Hellfire / Tau/Hellfire rack power scale |
+| `cook_off.debugLogging` | `true` | 调试日志 / журнал отладки / debug logging |
 
 ---
 
