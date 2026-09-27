@@ -17,6 +17,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -53,6 +54,13 @@ public final class CookOffHandler {
     private static final Map<ServerLevel, Set<Entity>> FRAGMENTS = new HashMap<>();
     private static final Map<Entity, Vec3> FRAG_LAST_POS = new HashMap<>();
     private static long lastTaovSweepLogSecond = Long.MIN_VALUE;
+
+    /**
+     * Storages that already rolled their blast cook off chance for one concrete
+     * explosion. The start and the detonate event both enumerate the blast, so without
+     * this every storage would roll twice. Weak keys collect finished explosions.
+     */
+    private static final Map<Explosion, Set<BlockPos>> BLAST_ROLLS = new WeakHashMap<>();
 
     /** Cook off explosions waiting to detonate, so bursts spread over several ticks. */
     private static final List<PendingExplosion> PENDING = new ArrayList<>();
@@ -355,8 +363,10 @@ public final class CookOffHandler {
     }
 
     /**
-     * Fragments (shrapnel bursts) only cook off missiles in flight. Ammo racks and
-     * missile launchers are never triggered by fragments.
+     * Shrapnel bursts (Ritchies Projectile Lib fragment entities) only cook off missiles
+     * in flight: ammo racks and missile launchers are never triggered by those. The
+     * fragments CBC Terminal Ballistics casts are no entities and are reported from the
+     * block they hit instead, see onFragmentBlockHit.
      */
     private static void sweepFragments(ServerTickEvent.Post event) {
         boolean missileMods = CompatConfig.MIANBAOS_COOK_OFF.get() || CompatConfig.VESTALIHY_COOK_OFF.get();
@@ -449,19 +459,65 @@ public final class CookOffHandler {
     }
 
     /** Triggers cook off on whichever ammo storage (rack, depot or launcher) is at the position. */
-    private static void triggerCookOff(ServerLevel level, BlockPos pos) {
+    private static boolean triggerCookOff(ServerLevel level, BlockPos pos) {
         if (level.getBlockEntity(pos) instanceof AmmoRackBlockEntity rack) {
-            RackCompatUtil.cookOff(level, pos, rack);
-        } else if (CompatConfig.DEPOT_COOK_OFF.get()
+            return RackCompatUtil.cookOff(level, pos, rack);
+        }
+        if (CompatConfig.DEPOT_COOK_OFF.get()
                 && level.getBlockEntity(pos) instanceof DepotBlockEntity depot
                 && RackCompatUtil.isDepotWithAmmo(level, pos)) {
-            RackCompatUtil.cookOffDepot(level, pos, depot);
-        } else if (CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos)) {
+            return RackCompatUtil.cookOffDepot(level, pos, depot);
+        }
+        if (CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos)) {
             cookOffLauncher(level, pos);
-        } else if (CompatConfig.TAOV_COOK_OFF.get()
+            return true;
+        }
+        if (CompatConfig.TAOV_COOK_OFF.get()
                 && TaovCompat.isRackBlockEntity(level.getBlockEntity(pos))) {
             cookOffTaovRack(level, pos, level.getBlockEntity(pos));
+            return true;
         }
+        return false;
+    }
+
+    /**
+     * Cheap pre-filter of the blast and fragment triggers: true when the block at the
+     * position may be a cook-off storage with that trigger enabled. Whether it actually
+     * holds ammunition that can cook off is decided by the cook off itself.
+     */
+    private static boolean canCookOff(ServerLevel level, BlockPos pos, boolean fragment) {
+        if (fragment && !CompatConfig.FRAGMENT_COOK_OFF.get()) {
+            return false;
+        }
+        BlockState state = level.getBlockState(pos);
+        if (!state.hasBlockEntity()) {
+            return false;
+        }
+        if (RackCompatUtil.isAmmoRack(state)) {
+            return fragment || CompatConfig.BLAST_COOK_OFF.get();
+        }
+        if (CompatConfig.DEPOT_COOK_OFF.get() && isDepotBlock(level, pos)) {
+            return true;
+        }
+        if (CompatConfig.MIANBAOS_COOK_OFF.get()
+                && MianbaosCompatUtil.isCookOffBlock(level.getBlockEntity(pos))) {
+            return true;
+        }
+        return CompatConfig.TAOV_COOK_OFF.get() && TaovCompat.isRackBlockEntity(level.getBlockEntity(pos));
+    }
+
+    /**
+     * Called by the terminal ballistics mixin for every block one of its fragments hits.
+     * CBC Terminal Ballistics spall is not made of entities (it casts plain rays and
+     * applies their damage itself), so those fragments never reach the entity sweep used
+     * for shrapnel bursts and are reported from the block they hit instead. Returns true
+     * when an ammo storage cooked off there.
+     */
+    public static boolean onFragmentBlockHit(Level level, BlockPos pos) {
+        if (!(level instanceof ServerLevel serverLevel) || !canCookOff(serverLevel, pos, true)) {
+            return false;
+        }
+        return triggerCookOff(serverLevel, pos);
     }
 
     private static BlockPos findCookOffTarget(
@@ -516,20 +572,31 @@ ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
         return level.getBlockState(pos).getBlock() instanceof com.simibubi.create.content.logistics.depot.DepotBlock;
     }
 
+    /**
+     * True when a loaded mianbaos launcher or pylon round is at or next to the position.
+     * Multi-block launchers keep their rounds in a single part, so the neighbouring
+     * blocks count as well.
+     */
     private static boolean isLauncherBlock(Level level, BlockPos pos) {
-        return level.getBlockState(pos).hasBlockEntity()
-                && MianbaosCompatUtil.isLauncher(level.getBlockEntity(pos));
+        if (!level.getBlockState(pos).hasBlockEntity()) {
+            return false;
+        }
+        if (!MianbaosCompatUtil.isCookOffBlock(level.getBlockEntity(pos))) {
+            return false;
+        }
+        return MianbaosCompatUtil.findLoadedCookOffBlock(level, pos) != null;
     }
 
-    /** Destroys the launcher block and starts its cook off burst, but only when a missile is loaded. */
+    /** Destroys the loaded launcher block and starts its cook off burst; empty ones are skipped. */
     public static void cookOffLauncher(ServerLevel level, BlockPos pos) {
-        if (!MianbaosCompatUtil.hasMissile(level.getBlockEntity(pos))) {
+        BlockPos target = MianbaosCompatUtil.findLoadedCookOffBlock(level, pos);
+        if (target == null) {
             return;
         }
-        level.destroyBlock(pos, false);
-        scheduleCookOffExplosions(level, Vec3.atCenterOf(pos), CompatConfig.MIANBAOS_POWER_SCALE.get());
+        level.destroyBlock(target, false);
+        scheduleCookOffExplosions(level, Vec3.atCenterOf(target), CompatConfig.MIANBAOS_POWER_SCALE.get());
         if (CompatConfig.DEBUG_LOGGING.get()) {
-            CBCMSMWCompat.LOGGER.info("[cbcmsmwcompat] Cook off: mianbaos launcher at {}", pos);
+            CBCMSMWCompat.LOGGER.info("[cbcmsmwcompat] Cook off: mianbaos launcher at {}", target);
         }
     }
 
@@ -790,11 +857,11 @@ ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
         }
         Vec3 worldCenter = SableCompat.projectOutOfSubLevel(serverLevel, explosion.center());
         for (BlockPos pos : spherePositions(worldCenter, radius)) {
-            cookOffBlockInBlast(serverLevel, pos);
+            cookOffInBlast(serverLevel, explosion, worldCenter, pos);
         }
         if (CompatConfig.SABLE_COOK_OFF.get() && SableCompat.isSableLoaded()) {
             SableCompat.forEachBlockInBlast(serverLevel, worldCenter, radius,
-                    CookOffHandler::cookOffBlockInBlast);
+                    (blastLevel, pos) -> cookOffInBlast(blastLevel, explosion, worldCenter, pos));
         }
 
         // Missiles and launcher entities (vestalihy launchers are entities that do not
@@ -836,22 +903,23 @@ ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
         Explosion explosion = event.getExplosion();
         Set<BlockPos> candidates = new HashSet<>(event.getAffectedBlocks());
 
-        // Storages that survive the blast but are still inside the blast radius
-        // also cook off: being caught in the blast guarantees detonation. Sub-level
-        // storages are enumerated in plot coordinates as well so chain cook offs
-        // work inside and between Sable structures.
+        // Storages that survive the blast but are still inside the blast radius also
+        // cook off, judged by their distance to the center (see cookOffInBlast).
+        // Sub-level storages are enumerated in plot coordinates as well so chain cook
+        // offs work inside and between Sable structures.
         double radius = explosion.radius();
         Vec3 worldCenter = SableCompat.projectOutOfSubLevel(serverLevel, explosion.center());
         if (radius > 0.0 && radius <= 24.0) {
             candidates.addAll(spherePositions(worldCenter, radius));
-            if (CompatConfig.SABLE_COOK_OFF.get() && SableCompat.isSableLoaded()) {
-                SableCompat.forEachBlockInBlast(serverLevel, worldCenter, radius,
-                        (ignored, pos) -> candidates.add(pos));
-            }
         }
 
         for (BlockPos pos : candidates) {
-            cookOffBlockInBlast(serverLevel, pos);
+            cookOffInBlast(serverLevel, explosion, worldCenter, pos);
+        }
+        if (radius > 0.0 && radius <= 24.0
+                && CompatConfig.SABLE_COOK_OFF.get() && SableCompat.isSableLoaded()) {
+            SableCompat.forEachBlockInBlast(serverLevel, worldCenter, radius,
+                    (blastLevel, pos) -> cookOffInBlast(blastLevel, explosion, worldCenter, pos));
         }
 
         for (Entity entity : event.getAffectedEntities()) {
@@ -887,29 +955,39 @@ ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
         return Math.min(24.0, Math.max(radius * 2.0, 6.0));
     }
 
-    /** Cooks off whichever cook-off-capable storage is at the position, if any. */
-    private static void cookOffBlockInBlast(ServerLevel level, BlockPos pos) {
-        BlockState state = level.getBlockState(pos);
-        if (!state.hasBlockEntity()) {
+    /**
+     * Cooks off a storage caught in an explosion blast. The chance grows the closer the
+     * storage sits to the center of the explosion: inside cook_off.blastGuaranteedRadius
+     * (half a block by default) it always detonates, further out the chance falls off
+     * towards cook_off.blastMinChance at the edge of the blast. Every storage rolls at
+     * most once per explosion, so the start and the detonate event cannot roll twice.
+     */
+    private static void cookOffInBlast(ServerLevel level, Explosion explosion, Vec3 worldCenter, BlockPos pos) {
+        if (!canCookOff(level, pos, false)) {
             return;
         }
-        if (RackCompatUtil.isAmmoRack(state)) {
-            if (!CompatConfig.BLAST_COOK_OFF.get()) {
-                return;
-            }
-            if (level.getBlockEntity(pos) instanceof AmmoRackBlockEntity rack) {
-                RackCompatUtil.cookOff(level, pos, rack);
-            }
-        } else if (CompatConfig.DEPOT_COOK_OFF.get() && RackCompatUtil.isDepotWithAmmo(level, pos)) {
-            if (level.getBlockEntity(pos) instanceof DepotBlockEntity depot) {
-                RackCompatUtil.cookOffDepot(level, pos, depot);
-            }
-        } else if (CompatConfig.MIANBAOS_COOK_OFF.get() && isLauncherBlock(level, pos)) {
-            cookOffLauncher(level, pos);
-        } else if (CompatConfig.TAOV_COOK_OFF.get()
-                && TaovCompat.isRackBlockEntity(level.getBlockEntity(pos))) {
-            cookOffTaovRack(level, pos, level.getBlockEntity(pos));
+        Vec3 blockCenter = SableCompat.projectOutOfSubLevel(level, Vec3.atCenterOf(pos));
+        double chance = blastCookOffChance(blockCenter.distanceTo(worldCenter), explosion.radius());
+        if (chance >= 1.0 || (claimBlastRoll(explosion, pos) && level.random.nextDouble() < chance)) {
+            triggerCookOff(level, pos);
         }
+    }
+
+    /** Cook off chance of a storage at the given distance from the center of a blast. */
+    private static double blastCookOffChance(double distance, double radius) {
+        double guaranteed = CompatConfig.BLAST_COOK_OFF_GUARANTEED_RADIUS.get();
+        double minChance = CompatConfig.BLAST_COOK_OFF_MIN_CHANCE.get();
+        if (distance <= guaranteed || minChance >= 1.0) {
+            return 1.0;
+        }
+        double span = Math.max(radius - guaranteed, 1.0E-3);
+        double fallOff = Mth.clamp((radius - distance) / span, 0.0, 1.0);
+        return minChance + (1.0 - minChance) * fallOff * fallOff;
+    }
+
+    /** True the first time a storage rolls its blast cook off chance for this explosion. */
+    private static boolean claimBlastRoll(Explosion explosion, BlockPos pos) {
+        return BLAST_ROLLS.computeIfAbsent(explosion, key -> new HashSet<>()).add(pos.immutable());
     }
 
     private static Set<BlockPos> spherePositions(Vec3 center, double radius) {

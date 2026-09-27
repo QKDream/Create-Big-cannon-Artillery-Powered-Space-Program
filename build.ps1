@@ -129,10 +129,11 @@ Copy-Item -Recurse -Force "$outDir\*" $jarTmp
 Copy-Item -Recurse -Force "$ws\src\main\resources\META-INF" $jarTmp
 Copy-Item -Force "$ws\src\main\resources\pack.mcmeta" $jarTmp
 Copy-Item -Force "$ws\src\main\resources\cbcmsmwcompat.mixins.json" $jarTmp
+Copy-Item -Force "$ws\src\main\resources\cbcmsmwcompat.terminal_ballistics.mixins.json" $jarTmp
 Copy-Item -Force "$ws\src\main\resources\logo.png" $jarTmp
 
 
-$jarOut = Join-Path $ws "cbcmsmwcompat-2.1.0.jar"
+$jarOut = Join-Path $ws "cbcmsmwcompat-2.1.2.jar"
 if (Test-Path $jarOut) { Remove-Item -Force $jarOut }
 Push-Location $jarTmp
 & $jar cf $jarOut "*"
@@ -145,7 +146,16 @@ if (Test-Path $jarOut) {
     exit 1
 }
 
-# Deploy: copy to the game mods folder and remove older builds of this mod.
-Copy-Item -Force $jarOut (Join-Path $modsFolder "cbcmsmwcompat-2.1.0.jar")
-Get-ChildItem $modsFolder -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.1.0.jar" } | Remove-Item -Force
-Write-Host "Deployed to: $modsFolder"
+# Deploy: refresh every instance that already has this mod installed and drop older builds.
+$deployTargets = @()
+foreach ($dir in (Get-ChildItem "D:\.minecraft\versions" -Directory)) {
+    $candidate = Join-Path $dir.FullName "mods"
+    if (-not (Test-Path $candidate)) { continue }
+    if (Get-ChildItem $candidate -Filter "cbcmsmwcompat-*.jar" -ErrorAction SilentlyContinue) { $deployTargets += $candidate }
+}
+if ($deployTargets.Count -eq 0) { $deployTargets += $modsFolder }
+foreach ($targetMods in $deployTargets) {
+    Copy-Item -Force $jarOut (Join-Path $targetMods "cbcmsmwcompat-2.1.2.jar")
+    Get-ChildItem $targetMods -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.1.2.jar" } | Remove-Item -Force
+    Write-Host "Deployed to: $targetMods"
+}

@@ -11,7 +11,10 @@ public final class CompatConfig {
 
     public static final ModConfigSpec.BooleanValue ARM_LOADING_FIX;
     public static final ModConfigSpec.BooleanValue DIRECT_HIT_COOK_OFF;
+    public static final ModConfigSpec.BooleanValue FRAGMENT_COOK_OFF;
     public static final ModConfigSpec.BooleanValue BLAST_COOK_OFF;
+    public static final ModConfigSpec.DoubleValue BLAST_COOK_OFF_GUARANTEED_RADIUS;
+    public static final ModConfigSpec.DoubleValue BLAST_COOK_OFF_MIN_CHANCE;
     public static final ModConfigSpec.BooleanValue DEPOT_COOK_OFF;
     public static final ModConfigSpec.IntValue COOK_OFF_EXPLOSION_COUNT;
     public static final ModConfigSpec.IntValue COOK_OFF_EXPLOSION_INTERVAL;
@@ -54,10 +57,29 @@ public final class CompatConfig {
                 .comment("An ammo rack or depot holding ammunition always cooks off when it is",
                         "directly hit by any Create Big Cannons projectile (including CBCMW/CBCMS ammo).")
                 .define("directHitEnabled", true);
+        FRAGMENT_COOK_OFF = builder
+                .comment("Ammo racks, depots and launcher platforms cook off when they are hit",
+                        "by the fragments CBC Terminal Ballistics casts out of a block a shell",
+                        "penetrates. Shrapnel bursts of Create Big Cannons are unaffected:",
+                        "they still only detonate missiles in flight.")
+                .define("fragmentEnabled", true);
         BLAST_COOK_OFF = builder
-                .comment("An ammo rack holding ammunition always cooks off when it is caught",
-                        "in an explosion blast.")
+                .comment("An ammo rack holding ammunition cooks off when it is caught in an",
+                        "explosion blast. The closer the storage sits to the center of the",
+                        "explosion, the higher the chance: inside blastGuaranteedRadius it",
+                        "always detonates, further out the chance falls off towards",
+                        "blastMinChance at the edge (set blastMinChance to 1.0 for the old",
+                        "always detonate behaviour).")
                 .define("blastEnabled", true);
+        BLAST_COOK_OFF_GUARANTEED_RADIUS = builder
+                .comment("Distance from the center of a blast (in blocks) within which a",
+                        "storage caught in it always cooks off.")
+                .defineInRange("blastGuaranteedRadius", 0.5, 0.0, 12.0);
+        BLAST_COOK_OFF_MIN_CHANCE = builder
+                .comment("Cook off chance for a storage at the very edge of a blast. Between",
+                        "blastGuaranteedRadius and the edge the chance scales quadratically",
+                        "from 1.0 down to this value.")
+                .defineInRange("blastMinChance", 0.1, 0.0, 1.0);
         DEPOT_COOK_OFF = builder
                 .comment("Create depots holding CBC ammunition also cook off when hit or caught in a blast.")
                 .define("depotEnabled", true);

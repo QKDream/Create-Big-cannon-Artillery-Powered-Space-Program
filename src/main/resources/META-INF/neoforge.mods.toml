@@ -4,11 +4,11 @@ license = "MIT"
 
 [[mods]]
 modId = "cbcmsmwcompat"
-version = "2.1.0"
+version = "2.1.2"
 logoFile = "logo.png"
 displayName = "机械动力火炮：载人航天（Create Big cannon:Artillery-Powered Space Program）"
 authors = "QKDream"
-description = '''Fixes CBC Modern Warfare medium cannon ammunition handling in CBC Military Supplement ammo racks (loading and redstone shell selection) and adds ammunition cook off: racks, depots, mianbaos and vestalihy missile/rocket launchers, missiles in flight (also when hit by fragments) and dying creatures carrying CBC ammunition all detonate when hit or caught in a blast, and Sable sub-level structures caught in the blast take structural damage. CBC Military Supplement air munitions in flight (torpedoes, rockets, depth charges and bombs) and taov_weapons Tau/Hellfire racks with their in-flight missiles detonate when directly hit, hit by fragments or caught in an explosion blast. No proximity fuze is included; proximity airbursts are handled by other mods.'''
+description = '''Fixes CBC Modern Warfare medium cannon ammunition handling in CBC Military Supplement ammo racks (loading and redstone shell selection) and adds ammunition cook off: racks, depots, mianbaos and vestalihy missile/rocket launchers, missiles in flight (also when hit by fragments) and dying creatures carrying CBC ammunition all detonate when hit or caught in a blast (a storage caught in a blast detonates with a chance that grows the closer it sits to the blast center, and the spall fragments CBC Terminal Ballistics casts out of a penetrated block also cook off the storages they hit), and Sable sub-level structures caught in the blast take structural damage. CBC Military Supplement air munitions in flight (torpedoes, rockets, depth charges and bombs) and taov_weapons Tau/Hellfire racks with their in-flight missiles detonate when directly hit, hit by fragments or caught in an explosion blast. No proximity fuze is included; proximity airbursts are handled by other mods.'''
 
 [[dependencies.cbcmsmwcompat]]
 modId = "neoforge"
@@ -74,6 +74,13 @@ ordering = "AFTER"
 side = "BOTH"
 
 [[dependencies.cbcmsmwcompat]]
+modId = "cbc_terminal_ballistics"
+type = "optional"
+versionRange = "[0.3.0,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.cbcmsmwcompat]]
 modId = "sable"
 type = "optional"
 versionRange = "[2.0.3,)"
@@ -82,4 +89,7 @@ side = "BOTH"
 
 [[mixins]]
 config = "cbcmsmwcompat.mixins.json"
+
+[[mixins]]
+config = "cbcmsmwcompat.terminal_ballistics.mixins.json"
 
