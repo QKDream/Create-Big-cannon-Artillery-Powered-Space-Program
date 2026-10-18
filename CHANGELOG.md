@@ -3,6 +3,7 @@
 ## v2.1.2
 - 爆炸波及殉爆改为按距离判定概率：爆炸中心 0.5 格以内必定殉爆，越往外概率越低（爆炸边缘默认 10%，可配置），每个弹药架/置物台/发射器对同一次爆炸只判定一次（`cook_off.blastGuaranteedRadius` / `cook_off.blastMinChance`，把 `blastMinChance` 设为 1.0 即恢复"必定殉爆"）
 - 新增终端弹道学 (CBC Terminal Ballistics) 联动：终端弹道学的破片不是实体（逐条射线结算并自行施加伤害），此前无法被本 mod 捕获；现在其破片命中的弹药架/置物台/发射器同样会殉爆（`cook_off.fragmentEnabled`），CBC 榴散弹破片的既有行为不变（仍只引爆飞行中的导弹）
+- 殉爆扩展到面包学**全部 `*tanshe` 投掷物**：此前判定只看类名是否含 `missile`/`rocket`/`agm`，而面包学的炸弹一族类名是 `Bombtanshe`/`Jdam1tanshe`/`Glidebombtanshe`/`Earthpenetratorbombtanshe` 等，于是 JDAM 与滑翔炸弹**从不被视为飞行弹药**、无法殉爆；现在把 `tanshe` 一并纳入（`MianbaosCompatUtil.isWeaponEntity`）
 
 ## v2.1.1
 - 修复面包学 (mianbaos_modernwarfare) 的导弹/火箭炮发射器无法殉爆：面包学的发射器并不把已装填的弹药放在方块容器里，而是把弹药数量写进方块实体的持久化数据（`missileammo1` / `missile1ammo` / `loadmissile` / `ammo` 等计数键），旧判定只看容器物品栏，于是永远认为发射器是空的；现在改为读取这些弹药计数键（跳过用于选择弹种的 `*type` 键）
