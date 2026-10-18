@@ -133,7 +133,7 @@ Copy-Item -Force "$ws\src\main\resources\cbcmsmwcompat.terminal_ballistics.mixin
 Copy-Item -Force "$ws\src\main\resources\logo.png" $jarTmp
 
 
-$jarOut = Join-Path $ws "cbcmsmwcompat-2.1.2.jar"
+$jarOut = Join-Path $ws "cbcmsmwcompat-2.1.3.jar"
 if (Test-Path $jarOut) { Remove-Item -Force $jarOut }
 Push-Location $jarTmp
 & $jar cf $jarOut "*"
@@ -155,7 +155,7 @@ foreach ($dir in (Get-ChildItem "D:\.minecraft\versions" -Directory)) {
 }
 if ($deployTargets.Count -eq 0) { $deployTargets += $modsFolder }
 foreach ($targetMods in $deployTargets) {
-    Copy-Item -Force $jarOut (Join-Path $targetMods "cbcmsmwcompat-2.1.2.jar")
-    Get-ChildItem $targetMods -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.1.2.jar" } | Remove-Item -Force
+    Copy-Item -Force $jarOut (Join-Path $targetMods "cbcmsmwcompat-2.1.3.jar")
+    Get-ChildItem $targetMods -Filter "cbcmsmwcompat-*.jar" | Where-Object { $_.Name -ne "cbcmsmwcompat-2.1.3.jar" } | Remove-Item -Force
     Write-Host "Deployed to: $targetMods"
 }
