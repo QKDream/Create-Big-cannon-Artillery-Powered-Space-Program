@@ -158,6 +158,14 @@ public final class MianbaosCompatUtil {
             return false;
         }
         String simple = entity.getClass().getSimpleName().toLowerCase(Locale.ROOT);
-        return simple.contains("missile") || simple.contains("rocket") || simple.contains("agm");
+        // Every round of 面包学's is named "<thing>tanshe" - bombs, JDAM, glide bombs,
+        // cruise and the guided missiles alike - while only some of them carry "missile"
+        // or "rocket" in their name. The bombs were therefore never treated as flying
+        // ammunition and could not be cooked off, which is exactly the JDAM and glide bomb
+        // a crew reported. "tanshe" is the one word the whole family shares.
+        return simple.contains("missile")
+                || simple.contains("rocket")
+                || simple.contains("agm")
+                || simple.contains("tanshe");
     }
 }
