@@ -1,5 +1,10 @@
 # 更新日志
 
+## v2.1.4
+- 修复面包学的**机炮 / 喷火器 / 机枪弹药也会殉爆**，并由此引发的连环爆炸与卡顿：2.1.3 的判据放宽成"类名含 `tanshe`"，而面包学**所有**投掷物都叫 `<东西>tanshe`，于是机炮弹（`Autocannontanshe`）、机枪塔弹（`GunTurrettanshe`）、近防炮弹（`CIWStanshe`）、喷火器火球（`Fireballtanshe`）、迫击炮弹（`Mortartanshe`）、榴弹（`Wolvesgrenadetanshe`）、C4 与破片（`RocketShrapnel`）全被当成"飞行中的导弹"：一发 CBC 炮弹掠过一串弹幕就把整条弹链引爆，每颗弹各自排队 3 次爆炸、爆炸又去扫下一批弹药，几秒内成百上千次爆炸把服务器卡死；现在只认真正的战斗部（导弹/火箭/炸弹/鱼雷/JDAM/滑翔弹/AGM），并显式排除小口径与破片一族（机炮、机枪、炮塔、近防炮、喷火器、迫击炮、榴弹、C4、破片、无人机）（`MianbaosCompatUtil.isCookOffMunition`，实测面包学 2.5.1/2.6.9/2.7.0 三个版本的类名，仍会殉爆的枪炮弹丸为 0）
+- 去掉两处不受 `debugLogging` 控制、且不限速的 `taov sweep` INFO 日志（每次半径 ≤24 的爆炸都写一行，联爆时刷屏本身也造成卡顿），改走已有的每秒限速诊断
+- 版本号 2.1.3 → 2.1.4
+
 ## v2.1.3
 - 殉爆扩展到面包学**全部 `*tanshe` 投掷物**：此前判定只看类名是否含 `missile`/`rocket`/`agm`，而面包学的炸弹一族类名是 `Bombtanshe`/`Jdam1tanshe`/`Glidebombtanshe`/`Earthpenetratorbombtanshe` 等，于是 JDAM 与滑翔炸弹**从不被视为飞行弹药**、无法殉爆；现在把 `tanshe` 一并纳入（`MianbaosCompatUtil.isWeaponEntity`）
 

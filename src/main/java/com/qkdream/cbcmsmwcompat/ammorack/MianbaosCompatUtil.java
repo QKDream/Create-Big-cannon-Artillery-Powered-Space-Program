@@ -20,6 +20,28 @@ public final class MianbaosCompatUtil {
     private static final String ENTITY_PREFIX = "net.mcreator.myfirstmod.entity.";
 
     /**
+     * Munitions that may cook off in flight. Every projectile of 面包学's is named
+     * "<thing>tanshe" - the bombs, JDAM and glide bombs share that word with the cruise and
+     * the guided missiles - but so does every round its guns fire. Only a whole munition
+     * that carries a warhead of its own counts.
+     */
+    private static final String[] COOK_OFF_MUNITION_MARKERS = {
+            "missile", "rocket", "bomb", "torpedo", "jdam", "agm"
+    };
+
+    /**
+     * Small arms and the debris a warhead throws out. The rounds of the autocannon, the
+     * heavy machine gun, the gun turret, the CIWS, the flamethrower, the mortar and the
+     * grenade cannon are ammunition for a gun, not a warhead, so they never cook off -
+     * even when the class name also carries a munition word (RocketShrapnelEntity).
+     */
+    private static final String[] NON_COOK_OFF_MARKERS = {
+            "autocannon", "machinegun", "gatling", "gattling", "gunturret", "ciws",
+            "fireball", "flame", "mortar", "grenade", "shrapnel", "fragment",
+            "c4", "arrow", "bullet", "smoke", "countermeasure", "drone"
+    };
+
+    /**
      * Launchers made of several blocks (VLS, rocket artillery, torpedo tubes) keep the
      * rounds in one part only, so neighbouring blocks are searched for the loaded part.
      */
@@ -136,7 +158,10 @@ public final class MianbaosCompatUtil {
         return isCookOffBlock(blockEntity) && hasLoadableRound(blockEntity);
     }
 
-    /** Missiles and rockets in flight (tanshe = projectile in the mianbaos mod). */
+    /**
+     * Whole munitions in flight: the ones that carry a warhead of their own and therefore
+     * cook off when they are hit (missiles, rockets, bombs, JDAM/glide bombs, torpedoes).
+     */
     public static boolean isMissile(Entity entity) {
         return isWeaponEntity(entity, false);
     }
@@ -158,14 +183,45 @@ public final class MianbaosCompatUtil {
             return false;
         }
         String simple = entity.getClass().getSimpleName().toLowerCase(Locale.ROOT);
-        // Every round of 面包学's is named "<thing>tanshe" - bombs, JDAM, glide bombs,
-        // cruise and the guided missiles alike - while only some of them carry "missile"
-        // or "rocket" in their name. The bombs were therefore never treated as flying
-        // ammunition and could not be cooked off, which is exactly the JDAM and glide bomb
-        // a crew reported. "tanshe" is the one word the whole family shares.
-        return simple.contains("missile")
-                || simple.contains("rocket")
-                || simple.contains("agm")
-                || simple.contains("tanshe");
+        if (living) {
+            // Launch platforms (missile turrets, rocket carriers) are whole weapons rather
+            // than rounds: they keep the original missile/rocket match.
+            return isLauncherPlatformName(simple);
+        }
+        return isCookOffMunition(simple);
+    }
+
+    /** True when the class name belongs to a launcher platform rather than to a round. */
+    static boolean isLauncherPlatformName(String simple) {
+        return !isSmallArmOrFragment(simple)
+                && (simple.contains("missile") || simple.contains("rocket"));
+    }
+
+    /**
+     * True when the class name belongs to a munition that carries its own warhead. Matching
+     * on "tanshe" alone (2.1.3) made every cannon round, machine gun tracer, flame ball,
+     * mortar shell and grenade a cook off source: one CBC shell passing a burst of cannon
+     * fire lit up the whole stream, each round queued its own explosion burst, each burst
+     * found the next rounds, and the resulting chain of explosions froze the server.
+     */
+    private static boolean isCookOffMunition(String simple) {
+        if (isSmallArmOrFragment(simple)) {
+            return false;
+        }
+        for (String marker : COOK_OFF_MUNITION_MARKERS) {
+            if (simple.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isSmallArmOrFragment(String simple) {
+        for (String marker : NON_COOK_OFF_MARKERS) {
+            if (simple.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

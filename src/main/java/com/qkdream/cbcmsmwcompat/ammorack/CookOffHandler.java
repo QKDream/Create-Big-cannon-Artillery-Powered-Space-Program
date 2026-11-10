@@ -884,11 +884,10 @@ ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
             }
             if (airMunitions && CompatConfig.TAOV_COOK_OFF.get()) {
                 double taovHalf = taovBlastHalf(radius);
-                CBCMSMWCompat.LOGGER.info(
-                        "[cbcmsmwcompat] taov sweep from explosion start: radius {} half {} center {}",
-                        radius, taovHalf, worldCenter);
-                TaovCompat.detonateAirMunitionsIn(serverLevel,
-                        AABB.ofSize(worldCenter, taovHalf * 2.0, taovHalf * 2.0, taovHalf * 2.0));
+                AABB taovArea = AABB.ofSize(worldCenter, taovHalf * 2.0, taovHalf * 2.0, taovHalf * 2.0);
+                // Rate limited: a chain of cook offs detonates many explosions per tick.
+                logTaovSweep("explosion start", serverLevel, taovArea);
+                TaovCompat.detonateAirMunitionsIn(serverLevel, taovArea);
             }
         }
     }
@@ -936,11 +935,10 @@ ServerLevel level, AbstractCannonProjectile projectile, Vec3 a, Vec3 b) {
         }
         if (CompatConfig.AIR_MUNITION_COOK_OFF.get() && CompatConfig.TAOV_COOK_OFF.get()) {
             double taovHalf = taovBlastHalf(radius);
-            CBCMSMWCompat.LOGGER.info(
-                    "[cbcmsmwcompat] taov sweep from explosion detonate: radius {} half {} center {}",
-                    radius, taovHalf, worldCenter);
-            TaovCompat.detonateAirMunitionsIn(serverLevel,
-                    AABB.ofSize(worldCenter, taovHalf * 2.0, taovHalf * 2.0, taovHalf * 2.0));
+            AABB taovArea = AABB.ofSize(worldCenter, taovHalf * 2.0, taovHalf * 2.0, taovHalf * 2.0);
+            // Rate limited: a chain of cook offs detonates many explosions per tick.
+            logTaovSweep("explosion detonate", serverLevel, taovArea);
+            TaovCompat.detonateAirMunitionsIn(serverLevel, taovArea);
         }
 
     }
